@@ -1,8 +1,8 @@
 // YouTube API Configuration
 // Replace 'YOUR_API_KEY_HERE' with your actual YouTube Data API key
 const YOUTUBE_CONFIG = {
-    CLIENT_ID: '130276381156-ttsdoqp62qecakf2fv0bmlu2s0pl9mv4.apps.googleusercontent.com',
-    API_KEY: 'AIzaSyAVdxRCAA3i1-Nlv6kwWrzJPH6WAV_dtrs', // Replace with your API key from Google Cloud Console
+    CLIENT_ID: 'YOUR_CLIENT_ID_HERE',
+    API_KEY: 'YOUR_API_KEY_HERE', // Replace with your API key from Google Cloud Console
     DISCOVERY_DOCS: ['https://www.googleapis.com/discovery/v1/apis/youtube/v3/rest'],
     SCOPES: 'https://www.googleapis.com/auth/youtube.readonly'
 };
