@@ -396,6 +396,25 @@
         .hidden {
             display: none;
         }
+
+        /* Playlist dropdown selector */
+        .playlist-select {
+            background: #222;
+            color: #fff;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+
+        .playlist-select:hover, .playlist-select:focus {
+            border-color: #1db954;
+            background: #2a2a2a;
+        }
     </style>
 </head>
 
@@ -410,7 +429,9 @@
             <h1 class="game-title">Heardle Unlimited</h1>
 
             <div class="header-right">
-
+                <select id="playlistSelect" class="playlist-select" title="Choose Playlist">
+                    <!-- Dynamically populated -->
+                </select>
                 <button class="icon-button" title="Statistics">📊</button>
                 <button class="icon-button" title="Help">?</button>
             </div>
@@ -491,8 +512,8 @@
         </div>
     </div>
 
-    <!-- Load local fallback song list if file:// protocol blocks fetch -->
-    <script src="songs.js"></script>
+    <!-- Load local fallback playlists if file:// protocol blocks fetch -->
+    <script src="playlists.js"></script>
     <script>
         // YouTube API Configuration
         // Note: We use the IFrame API which doesn't require an API Key for playback
@@ -510,6 +531,8 @@
         let playbackTimer = null;
         let player = null; // YouTube Player instance
         let playerReady = false;
+        let playlistsData = {};
+        let activePlaylistKey = '';
 
         // DOM elements
         const playButton = document.getElementById('playButton');
@@ -535,28 +558,45 @@
 
         async function loadSongs() {
             try {
-                // Attempt to load songs using fetch (works when served via HTTP/S)
-                const response = await fetch('songs.json');
-                if (!response.ok) throw new Error('Failed to load songs.json');
-                songs = await response.json();
-                console.log(`Loaded ${songs.length} songs via fetch`);
+                // Attempt to load playlists using fetch (works when served via HTTP/S)
+                const response = await fetch('playlists.json');
+                if (!response.ok) throw new Error('Failed to load playlists.json');
+                playlistsData = await response.json();
+                console.log(`Loaded playlists via fetch`);
             } catch (error) {
-                console.warn('Could not fetch songs.json directly (likely CORS/file:// policy). Trying local script fallback...');
-                // Fall back to the script-loaded HEARDLE_SONGS variable
-                if (window.HEARDLE_SONGS && Array.isArray(window.HEARDLE_SONGS) && window.HEARDLE_SONGS.length > 0) {
-                    songs = window.HEARDLE_SONGS;
-                    console.log(`Loaded ${songs.length} songs via local songs.js script fallback`);
+                console.warn('Could not fetch playlists.json directly (likely CORS/file:// policy). Trying local script fallback...');
+                // Fall back to the script-loaded HEARDLE_PLAYLISTS variable
+                if (window.HEARDLE_PLAYLISTS && typeof window.HEARDLE_PLAYLISTS === 'object' && Object.keys(window.HEARDLE_PLAYLISTS).length > 0) {
+                    playlistsData = window.HEARDLE_PLAYLISTS;
+                    console.log(`Loaded playlists via local playlists.js script fallback`);
                 } else {
-                    console.error('Error loading songs.json and local fallback not available:', error);
-                    instructionText.textContent = "Error: Could not load songs.json";
+                    console.error('Error loading playlists and local fallback not available:', error);
+                    instructionText.textContent = "Error: Could not load playlists.json";
                     return;
                 }
             }
 
-            if (songs.length === 0) {
-                alert('songs.json is empty. Run the generator script!');
+            // Populate the dropdown selector
+            const playlistSelect = document.getElementById('playlistSelect');
+            playlistSelect.innerHTML = '';
+            
+            const playlistKeys = Object.keys(playlistsData);
+            if (playlistKeys.length === 0) {
+                alert('playlists.json is empty. Run the generator script!');
                 return;
             }
+
+            playlistKeys.forEach(key => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = playlistsData[key].name;
+                playlistSelect.appendChild(option);
+            });
+
+            // Set default playlist
+            activePlaylistKey = playlistKeys[0];
+            songs = playlistsData[activePlaylistKey].songs;
+            document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
 
             initDailyGame();
         }
@@ -844,7 +884,64 @@
 
             // Play Again button
             const playAgainBtn = document.getElementById('playAgainButton');
-            playAgainBtn.onclick = () => location.reload();
+            playAgainBtn.onclick = () => resetGame(false);
+        }
+
+        function resetGame(newPlaylistSelected = false) {
+            // Stop playback
+            if (playbackTimer) {
+                clearTimeout(playbackTimer);
+                playbackTimer = null;
+            }
+            if (playerReady && player && player.pauseVideo) {
+                player.pauseVideo();
+                player.seekTo(0);
+            }
+            isPlaying = false;
+            playButton.textContent = "▶";
+            progressBar.style.width = '0%';
+            currentTimeDisplay.textContent = '0:00';
+
+            // Reset game states
+            currentAttempt = 1;
+            gameEnded = false;
+            
+            // Reset UI elements
+            currentAttemptDisplay.textContent = '1';
+            clipLengthDisplay.textContent = SNIPPET_DURATIONS[0];
+            totalTimeDisplay.textContent = `0:${SNIPPET_DURATIONS[0].toString().padStart(2, '0')}`;
+            instructionText.textContent = "Turn up the volume and tap to start the track!";
+            
+            // Reset answer boxes
+            const boxes = document.querySelectorAll('.answer-box');
+            boxes.forEach((box, index) => {
+                box.className = 'answer-box' + (index === 0 ? ' current' : '');
+                box.textContent = '';
+                // Add attempt number back
+                const attemptNum = document.createElement('div');
+                attemptNum.className = 'attempt-number';
+                attemptNum.textContent = index + 1;
+                box.appendChild(attemptNum);
+            });
+
+            // Make the progress bar unclickable/standard
+            if (progressContainer) {
+                progressContainer.classList.remove('clickable');
+            }
+
+            // Hide game over screen
+            gameOver.className = 'game-over';
+            gameOver.style.display = 'none';
+
+            // Select new song
+            const songIndex = Math.floor(Math.random() * songs.length);
+            currentSong = songs[songIndex];
+            console.log('Selected Song:', currentSong.title); // Debug
+
+            // If player is already loaded, cue/load the new video
+            if (playerReady && player && player.cueVideoById) {
+                player.cueVideoById(currentSong.id);
+            }
         }
 
         // Search Autocomplete (Simple version)
@@ -858,6 +955,15 @@
             submitButton.addEventListener('click', submitGuess);
             skipButton.addEventListener('click', skipAttempt);
             clearButton.addEventListener('click', () => searchInput.value = '');
+
+            // Playlist selector listener
+            const playlistSelect = document.getElementById('playlistSelect');
+            playlistSelect.addEventListener('change', function () {
+                activePlaylistKey = this.value;
+                songs = playlistsData[activePlaylistKey].songs;
+                document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
+                resetGame(true);
+            });
 
             // Click on progress bar to seek (only when gameEnded is true)
             if (progressContainer) {
