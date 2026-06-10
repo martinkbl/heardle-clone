@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Debug - YouTube Playlist Loading</title>
+    <style>
+        body {
+            background: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .debug-section {
+            background: #2a2a2a;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4285f4;
+        }
+        .console-log {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        button {
+            background: #1db954;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #1ed760;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .step {
+            margin: 10px 0;
+            padding: 10px;
+            background: #333;
+            border-radius: 5px;
+        }
+        .step.active {
+            border-left: 4px solid #1db954;
+        }
+        .step.error {
+            border-left: 4px solid #ff6b6b;
+        }
+    </style>
+    <script src="config.js"></script>
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+</head>
+<body>
+    <h1>🧪 YouTube Playlist Loading Debugger</h1>
+    
+    <div class="debug-section">
+        <h3>Configuration Check</h3>
+        <p>API Key: <span id="apiKeyStatus">Checking...</span></p>
+        <p>Client ID: <span id="clientIdStatus">Checking...</span></p>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Debug Steps</h3>
+        <div id="step1" class="step">Step 1: Load Google APIs</div>
+        <div id="step2" class="step">Step 2: Authenticate with Google</div>
+        <div id="step3" class="step">Step 3: Get Access Token</div>
+        <div id="step4" class="step">Step 4: Make Direct YouTube API Call</div>
+        <div id="step5" class="step">Step 5: Parse Response & Display Playlists</div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Actions</h3>
+        <button id="authBtn" onclick="startAuthentication()">🔐 Start Authentication</button>
+        <button id="directTestBtn" onclick="testDirectAPICall()" disabled>🚀 Test Direct API Call</button>
+        <button onclick="clearLogs()">🧹 Clear Logs</button>
+        <button onclick="window.open('index.html', '_blank')">🎮 Open Main Game</button>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Debug Console</h3>
+        <div id="debugConsole" class="console-log">Ready to debug...\n</div>
+    </div>
+    
+    <div class="debug-section">
+        <h3>Playlist Results</h3>
+        <div id="playlistResults">No playlists loaded yet.</div>
+    </div>
+    
+    <script>
+        // Configuration
+        const CLIENT_ID = YOUTUBE_CONFIG.CLIENT_ID;
+        const API_KEY = YOUTUBE_CONFIG.API_KEY;
+        const SCOPES = YOUTUBE_CONFIG.SCOPES;
+        
+        let accessToken = null;
+        
+        // Debug logging
+        function debugLog(message, isError = false) {
+            const debugConsole = document.getElementById('debugConsole');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}\n`;
+            debugConsole.textContent += logEntry;
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+            
+            if (isError) {
+                debugConsole.innerHTML = debugConsole.innerHTML.replace(logEntry, `<span style="color: #ff6b6b">${logEntry}</span>`);
+            }
+            
+            // Also log to browser console
+            if (isError) {
+                window.console.error(message);
+            } else {
+                window.console.log(message);
+            }
+        }
+        
+        function clearLogs() {
+            document.getElementById('debugConsole').textContent = 'Logs cleared...\n';
+        }
+        
+        function setStepStatus(stepId, status) {
+            const step = document.getElementById(stepId);
+            step.classList.remove('active', 'error');
+            if (status === 'active') {
+                step.classList.add('active');
+            } else if (status === 'error') {
+                step.classList.add('error');
+            }
+        }
+        
+        // Configuration check
+        function checkConfiguration() {
+            const apiKeyEl = document.getElementById('apiKeyStatus');
+            const clientIdEl = document.getElementById('clientIdStatus');
+            
+            if (API_KEY && API_KEY !== 'YOUR_API_KEY_HERE') {
+                apiKeyEl.innerHTML = `<span style="color: #1db954;">✅ Configured (${API_KEY.substring(0, 10)}...)</span>`;
+                debugLog('✅ API Key is configured');
+            } else {
+                apiKeyEl.innerHTML = `<span style="color: #ff6b6b;">❌ Not configured</span>`;
+                debugLog('❌ API Key not configured in config.js', true);
+            }
+            
+            if (CLIENT_ID) {
+                clientIdEl.innerHTML = `<span style="color: #1db954;">✅ Configured</span>`;
+                debugLog('✅ Client ID is configured');
+            } else {
+                clientIdEl.innerHTML = `<span style="color: #ff6b6b;">❌ Missing</span>`;
+                debugLog('❌ Client ID not configured', true);
+            }
+        }
+        
+        // Step 1: Load Google APIs
+        function loadGoogleAPIs() {
+            debugLog('🔄 Loading Google APIs...');
+            setStepStatus('step1', 'active');
+            
+            if (typeof gapi !== 'undefined') {
+                debugLog('✅ gapi is available');
+                gapi.load('client', function() {
+                    debugLog('✅ gapi.client loaded');
+                    setStepStatus('step1', '');
+                    return true;
+                });
+            } else {
+                debugLog('❌ gapi is not available', true);
+                setStepStatus('step1', 'error');
+                return false;
+            }
+        }
+        
+        // Step 2 & 3: Authentication
+        function startAuthentication() {
+            debugLog('🔐 Starting authentication process...');
+            setStepStatus('step2', 'active');
+            
+            if (!loadGoogleAPIs()) {
+                return;
+            }
+            
+            if (typeof google !== 'undefined' && google.accounts && google.accounts.oauth2) {
+                debugLog('✅ Google Identity Services available');
+                
+                const tokenClient = google.accounts.oauth2.initTokenClient({
+                    client_id: CLIENT_ID,
+                    scope: SCOPES,
+                    callback: (response) => {
+                        debugLog('📨 OAuth callback received');
+                        debugLog(`Response: ${JSON.stringify(response, null, 2)}`);
+                        
+                        if (response.access_token) {
+                            debugLog('✅ Access token received!');
+                            setStepStatus('step2', '');
+                            setStepStatus('step3', '');
+                            
+                            accessToken = response.access_token;
+                            debugLog(`🔑 Token preview: ${accessToken.substring(0, 20)}...`);
+                            
+                            // Set token in gapi client
+                            gapi.client.setToken(response);
+                            
+                            // Enable direct API test button
+                            document.getElementById('directTestBtn').disabled = false;
+                            
+                            debugLog('🎉 Authentication successful! You can now test the direct API call.');
+                        } else {
+                            debugLog('❌ No access token in response', true);
+                            setStepStatus('step2', 'error');
+                            setStepStatus('step3', 'error');
+                        }
+                    },
+                });
+                
+                debugLog('🚀 Requesting access token...');
+                tokenClient.requestAccessToken();
+            } else {
+                debugLog('❌ Google Identity Services not available', true);
+                setStepStatus('step2', 'error');
+            }
+        }
+        
+        // Step 4 & 5: Direct API Call
+        function testDirectAPICall() {
+            debugLog('🚀 Testing direct YouTube API call...');
+            setStepStatus('step4', 'active');
+            
+            if (!accessToken) {
+                debugLog('❌ No access token available', true);
+                setStepStatus('step4', 'error');
+                return;
+            }
+            
+            const apiUrl = `https://www.googleapis.com/youtube/v3/playlists?part=snippet,contentDetails&mine=true&maxResults=50&key=${API_KEY}`;
+            debugLog(`🌐 API URL: ${apiUrl}`);
+            
+            fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${accessToken}`,
+                    'Accept': 'application/json',
+                }
+            })
+            .then(response => {
+                debugLog(`📨 Response status: ${response.status}`);
+                debugLog(`📨 Response OK: ${response.ok}`);
+                
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        debugLog(`❌ Error response: ${text}`, true);
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}\nResponse: ${text}`);
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                debugLog('✅ JSON response received');
+                debugLog(`📊 Full response: ${JSON.stringify(data, null, 2)}`);
+                setStepStatus('step4', '');
+                setStepStatus('step5', 'active');
+                
+                if (data.error) {
+                    debugLog(`❌ API Error: ${data.error.message}`, true);
+                    setStepStatus('step5', 'error');
+                    return;
+                }
+                
+                const playlists = data.items || [];
+                debugLog(`🎵 Found ${playlists.length} playlists`);
+                
+                // Display results
+                const resultsEl = document.getElementById('playlistResults');
+                if (playlists.length === 0) {
+                    resultsEl.innerHTML = '<p style="color: #ff9500;">📋 No playlists found in your account</p>';
+                    debugLog('📋 No playlists found - this might be normal if you haven\'t created any playlists');
+                } else {
+                    setStepStatus('step5', '');
+                    resultsEl.innerHTML = `
+                        <h4 style="color: #1db954;">🎉 ${playlists.length} Playlists Found!</h4>
+                        ${playlists.map((playlist, index) => `
+                            <div style="background: #333; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                                <div style="font-weight: bold;">${playlist.snippet.title}</div>
+                                <div style="color: #888; font-size: 12px;">${playlist.contentDetails.itemCount || 0} songs</div>
+                                <div style="color: #666; font-size: 10px;">ID: ${playlist.id}</div>
+                            </div>
+                        `).join('')}
+                    `;
+                    debugLog('🎉 Playlists displayed successfully!');
+                }
+            })
+            .catch(error => {
+                debugLog(`❌ Error in API call: ${error.message}`, true);
+                setStepStatus('step4', 'error');
+                setStepStatus('step5', 'error');
+                
+                document.getElementById('playlistResults').innerHTML = `
+                    <p style="color: #ff6b6b;">❌ Error: ${error.message}</p>
+                `;
+            });
+        }
+        
+        // Initialize on page load
+        window.onload = function() {
+            checkConfiguration();
+            debugLog('🧪 Debug page loaded. Click "Start Authentication" to begin testing.');
+        };
+    </script>
+</body>
+</html> 

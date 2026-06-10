@@ -1,0 +1,15 @@
+{
+  "name": "heardle-generator",
+  "version": "1.0.0",
+  "description": "Script to generate songs.json from a YouTube Playlist for Heardle",
+  "main": "generate_songs.js",
+  "scripts": {
+    "generate": "node generate_songs.js",
+    "start": "serve ."
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "dotenv": "^16.3.1",
+    "serve": "^14.2.5"
+  }
+}

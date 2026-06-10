@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Layout Demo - Minimal Heardle</title>
+    <style>
+        :root {
+            --color-negative: #ff0000;
+            --color-fg: #ffffff;
+            --color-mg: #444;
+            --color-bg: #121212;
+            --color-line: #888;
+            --color-shade: rgba(0, 0, 0, 0.1);
+            --color-highlight: rgba(255, 255, 255, 0.05);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            height: 100%;
+            background: var(--color-bg);
+            color: var(--color-fg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            overflow: hidden;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            width: 100vw;
+            background: var(--color-bg);
+        }
+        
+        .game-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: var(--color-bg);
+            padding: 20px;
+            padding-bottom: 120px;
+        }
+        
+        .answer-section {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--color-bg);
+            border-top: 1px solid var(--color-mg);
+            padding: 20px;
+            z-index: 100;
+        }
+        
+        .answer-input-container {
+            max-width: 600px;
+            margin: 0 auto;
+            position: relative;
+        }
+        
+        /* Demo content styling */
+        .demo-content {
+            text-align: center;
+            border: 2px dashed var(--color-mg);
+            padding: 40px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .demo-input {
+            width: 100%;
+            padding: 15px;
+            background: var(--color-bg);
+            border: 1px solid var(--color-mg);
+            border-radius: 5px;
+            color: var(--color-fg);
+            font-size: 16px;
+        }
+        
+        .demo-input::placeholder {
+            color: var(--color-line);
+        }
+        
+        h1 {
+            color: var(--color-line);
+            margin-bottom: 20px;
+            font-weight: normal;
+        }
+        
+        .layout-info {
+            color: var(--color-line);
+            font-size: 14px;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="game-area">
+            <div class="demo-content">
+                <h1>🎵 GAME CONTENT AREA 🎵</h1>
+                <p>This is where the Heardle game interface appears</p>
+                <div class="layout-info">
+                    • Dark background (#121212)<br>
+                    • Centered content<br>
+                    • Full screen experience<br>
+                    • No visual clutter
+                </div>
+            </div>
+        </div>
+        
+        <div class="answer-section">
+            <div class="answer-input-container">
+                <input type="text" class="demo-input" placeholder="🎯 Answer input fixed at bottom - Type your song guess here...">
+                <div class="layout-info" style="margin-top: 10px; text-align: center;">
+                    Fixed position • Always visible • Clean interface
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html> 

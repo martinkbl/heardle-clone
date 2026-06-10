@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Heardle - Core Game</title>
+    <link rel="stylesheet" href="global.css" />
+    <link rel="stylesheet" href="bundle.css" />
+    <script>const game_path = "./";</script>
+    <script defer src="main_ktmanh.js"></script>
+    <style>
+        h1 {
+            white-space: nowrap;
+        }
+        
+        body {
+            background: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        
+        /* Ensure the game content fits well in iframe */
+        .game-wrapper {
+            width: 100%;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: #121212;
+        }
+        
+        /* Style for the main game container that Svelte will mount to */
+        #game-mount {
+            width: 100%;
+            max-width: 600px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-wrapper">
+        <div id="game-mount">
+            <!-- The Heardle game will be mounted here by the JavaScript -->
+        </div>
+    </div>
+</body>
+</html>

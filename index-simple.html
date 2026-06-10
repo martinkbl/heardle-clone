@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Heardle Unlimited - Simple Version</title>
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        html, body {
+            min-height: 100%;
+            width: 100%;
+            background: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+        
+        .game-container {
+            width: 100%;
+            min-height: 100vh;
+            background: #121212;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1db954;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            font-weight: bold;
+            z-index: 1000;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .game-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 40px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .icon-button {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: transparent;
+            border: 2px solid #666;
+            color: #ffffff;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .icon-button:hover {
+            border-color: #1db954;
+            background: #1db954;
+        }
+        
+        .game-title {
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            color: #ffffff;
+        }
+        
+        .game-content {
+            flex: 1;
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px 60px;
+        }
+        
+        .setup-info {
+            background: #1a1a1a;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 40px;
+            max-width: 600px;
+            text-align: center;
+            border: 2px solid #333;
+        }
+        
+        .setup-info h2 {
+            color: #1db954;
+            margin-bottom: 15px;
+            font-size: 24px;
+        }
+        
+        .setup-info p {
+            color: #cccccc;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        
+        .api-steps {
+            text-align: left;
+            color: #cccccc;
+            margin: 20px 0;
+        }
+        
+        .api-steps ol {
+            padding-left: 20px;
+        }
+        
+        .api-steps li {
+            margin-bottom: 8px;
+        }
+        
+        .code-block {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 15px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #1db954;
+            overflow-x: auto;
+        }
+        
+        .start-button {
+            background: #1db954;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 25px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s ease;
+            margin-top: 20px;
+        }
+        
+        .start-button:hover {
+            background: #1ed760;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="notification" id="notification">🎵 Playing with default songs - Set up YouTube API to use your playlists!</div>
+        
+        <!-- Header with title and icons -->
+        <div class="game-header">
+            <div class="header-left">
+                <button class="icon-button" title="Info">ⓘ</button>
+            </div>
+            
+            <h1 class="game-title">Heardle Unlimited</h1>
+            
+            <div class="header-right">
+                <button class="icon-button" title="Statistics">📊</button>
+                <button class="icon-button" title="Help">?</button>
+            </div>
+        </div>
+        
+        <!-- Game content -->
+        <div class="game-content">
+            <div class="setup-info">
+                <h2>🎵 YouTube Integration Setup</h2>
+                <p>To use your own YouTube playlists, you need to set up the YouTube Data API:</p>
+                
+                <div class="api-steps">
+                    <ol>
+                        <li>Go to <strong>Google Cloud Console → APIs & Services → Credentials</strong></li>
+                        <li>Click <strong>"Create Credentials"</strong> → <strong>"API Key"</strong></li>
+                        <li>Select <strong>"YouTube Data API v3"</strong></li>
+                        <li>Copy the generated API key (looks like <code>AIzaSyC...</code>)</li>
+                        <li>Open <code>config.js</code> and replace:</li>
+                    </ol>
+                </div>
+                
+                <div class="code-block">
+API_KEY: 'YOUR_API_KEY_HERE'
+                </div>
+                
+                <p><strong>With your actual API key:</strong></p>
+                
+                <div class="code-block">
+API_KEY: 'AIzaSyC...' // Your real API key
+                </div>
+                
+                <p>Then reload the page and click "Sign in with Google" to access your playlists!</p>
+            </div>
+            
+            <button class="start-button" onclick="window.location.href='index.html'">🎮 Start Game with Default Songs</button>
+        </div>
+    </div>
+    
+    <script>
+        // Hide notification after 5 seconds
+        setTimeout(() => {
+            document.getElementById('notification').style.display = 'none';
+        }, 5000);
+    </script>
+</body>
+</html> 

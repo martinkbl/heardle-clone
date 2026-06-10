@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>YouTube API Test - Heardle</title>
+    
+    <!-- Google APIs Client Library -->
+    <script src="https://apis.google.com/js/api.js"></script>
+    <script src="https://accounts.google.com/gsi/client"></script>
+    
+    <!-- YouTube API Configuration -->
+    <script src="config.js"></script>
+    
+    <style>
+        body {
+            background: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .test-section {
+            background: #1a1a1a;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            border: 2px solid #333;
+        }
+        
+        .success {
+            border-color: #1db954;
+            background: #0a2f0a;
+        }
+        
+        .error {
+            border-color: #ff4444;
+            background: #2f0a0a;
+        }
+        
+        .warning {
+            border-color: #ffaa00;
+            background: #2f2f0a;
+        }
+        
+        button {
+            background: #1db954;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 10px 10px 10px 0;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #1ed760;
+        }
+        
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .log {
+            background: #2a2a2a;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        
+        .playlist-item {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+        
+        .playlist-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .playlist-count {
+            font-size: 12px;
+            color: #888;
+        }
+    </style>
+</head>
+<body>
+    <h1>🎵 YouTube API Test for Heardle</h1>
+    <p>Use this page to test your YouTube Data API setup before using it in the game.</p>
+    
+    <!-- API Key Status -->
+    <div class="test-section" id="apiKeyStatus">
+        <h2>1. API Key Status</h2>
+        <p id="apiKeyMessage">Checking API key configuration...</p>
+    </div>
+    
+    <!-- Google API Loading -->
+    <div class="test-section" id="gapiStatus">
+        <h2>2. Google APIs Status</h2>
+        <p id="gapiMessage">Checking Google APIs...</p>
+        <button id="initGapi" onclick="initializeGoogleAPI()" disabled>Initialize Google API</button>
+    </div>
+    
+    <!-- Authentication -->
+    <div class="test-section" id="authStatus">
+        <h2>3. Authentication</h2>
+        <p id="authMessage">Not started</p>
+        <button id="signInBtn" onclick="signIn()" disabled>Sign In to Google</button>
+        <button id="signOutBtn" onclick="signOut()" disabled>Sign Out</button>
+        <button id="alternativeSignInBtn" style="display: none;">Sign In with Google Identity Services</button>
+    </div>
+    
+    <!-- Playlist Loading -->
+    <div class="test-section" id="playlistStatus">
+        <h2>4. Your Playlists</h2>
+        <p id="playlistMessage">Sign in first to load playlists</p>
+        <button id="loadPlaylistsBtn" onclick="loadPlaylists()" disabled>Load My Playlists</button>
+        <div id="playlistList"></div>
+    </div>
+    
+    <!-- Test Log -->
+    <div class="test-section">
+        <h2>5. Test Log</h2>
+        <div class="log" id="testLog">Test log will appear here...\n</div>
+        <button onclick="clearLog()">Clear Log</button>
+    </div>
+    
+    <script>
+        let isSignedIn = false;
+        let authInstance = null;
+        
+        // Log function
+        function log(message) {
+            const logElement = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+        
+        function clearLog() {
+            document.getElementById('testLog').textContent = 'Test log cleared...\n';
+        }
+        
+        // Check API Key
+        function checkApiKey() {
+            const apiKeySection = document.getElementById('apiKeyStatus');
+            const apiKeyMessage = document.getElementById('apiKeyMessage');
+            
+            if (typeof YOUTUBE_CONFIG === 'undefined') {
+                apiKeyMessage.textContent = '❌ config.js not loaded';
+                apiKeySection.className = 'test-section error';
+                log('ERROR: config.js not loaded');
+                return false;
+            }
+            
+            if (YOUTUBE_CONFIG.API_KEY === 'YOUR_API_KEY_HERE') {
+                apiKeyMessage.textContent = '⚠️ API key not configured yet - please add your YouTube Data API key to config.js';
+                apiKeySection.className = 'test-section warning';
+                log('WARNING: API key not configured');
+                return false;
+            }
+            
+            if (!YOUTUBE_CONFIG.API_KEY || YOUTUBE_CONFIG.API_KEY.length < 30) {
+                apiKeyMessage.textContent = '❌ Invalid API key format';
+                apiKeySection.className = 'test-section error';
+                log('ERROR: Invalid API key format');
+                return false;
+            }
+            
+            apiKeyMessage.textContent = '✅ API key configured correctly';
+            apiKeySection.className = 'test-section success';
+            log('SUCCESS: API key configured');
+            return true;
+        }
+        
+        // Check Google APIs
+        function checkGoogleAPIs() {
+            const gapiSection = document.getElementById('gapiStatus');
+            const gapiMessage = document.getElementById('gapiMessage');
+            const initButton = document.getElementById('initGapi');
+            
+            if (typeof gapi === 'undefined') {
+                gapiMessage.textContent = '❌ Google APIs not loaded';
+                gapiSection.className = 'test-section error';
+                log('ERROR: Google APIs not loaded');
+                return false;
+            }
+            
+            gapiMessage.textContent = '✅ Google APIs loaded successfully';
+            gapiSection.className = 'test-section success';
+            initButton.disabled = false;
+            log('SUCCESS: Google APIs loaded');
+            return true;
+        }
+        
+        // Alternative: Try Google Identity Services (newer method)
+        function tryAlternativeAuth() {
+            log('Trying alternative Google Identity Services...');
+            
+            if (typeof google !== 'undefined' && google.accounts) {
+                log('Google Identity Services available');
+                
+                // Initialize the Google Identity Services
+                google.accounts.id.initialize({
+                    client_id: YOUTUBE_CONFIG.CLIENT_ID,
+                    callback: handleCredentialResponse
+                });
+                
+                // Show the sign-in button
+                google.accounts.id.renderButton(
+                    document.getElementById('alternativeSignInBtn'),
+                    { theme: "outline", size: "large" }
+                );
+                
+                document.getElementById('alternativeSignInBtn').style.display = 'block';
+                log('Alternative sign-in button rendered');
+                
+            } else {
+                log('Google Identity Services not available');
+            }
+        }
+        
+        function handleCredentialResponse(response) {
+            log('Received credential response');
+            // Decode the JWT token to get user info
+            const responsePayload = decodeJwtResponse(response.credential);
+            log('User signed in: ' + responsePayload.email);
+            
+            // Now we can try to get the access token for YouTube API
+            requestYouTubeAccess();
+        }
+        
+        function requestYouTubeAccess() {
+            log('Requesting YouTube API access...');
+            
+            // Use the Token Client for OAuth 2.0 access
+            const tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: YOUTUBE_CONFIG.CLIENT_ID,
+                scope: YOUTUBE_CONFIG.SCOPES,
+                callback: (response) => {
+                    if (response.access_token) {
+                        log('SUCCESS: Received YouTube access token');
+                        gapi.client.setToken(response);
+                        loadYouTubeAPI();
+                    } else {
+                        log('ERROR: No access token received');
+                    }
+                },
+            });
+            
+            tokenClient.requestAccessToken();
+        }
+        
+        function decodeJwtResponse(token) {
+            const base64Url = token.split('.')[1];
+            const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+            const jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+            }).join(''));
+            return JSON.parse(jsonPayload);
+        }
+
+        // Initialize Google API
+        function initializeGoogleAPI() {
+            log('Initializing Google API...');
+            
+            gapi.load('auth2', function() {
+                gapi.auth2.init({
+                    client_id: YOUTUBE_CONFIG.CLIENT_ID,
+                    scope: YOUTUBE_CONFIG.SCOPES
+                }).then(function() {
+                    authInstance = gapi.auth2.getAuthInstance();
+                    isSignedIn = authInstance.isSignedIn.get();
+                    
+                    updateAuthStatus();
+                    
+                    if (isSignedIn) {
+                        log('User already signed in');
+                        loadYouTubeAPI();
+                    } else {
+                        log('User needs to sign in');
+                    }
+                    
+                }).catch(function(error) {
+                    log('ERROR initializing auth: ' + error.error);
+                    document.getElementById('authStatus').className = 'test-section error';
+                    
+                    // Try alternative authentication method
+                    log('Trying alternative authentication...');
+                    tryAlternativeAuth();
+                });
+            });
+        }
+        
+        // Load YouTube API (modified for alternative auth)
+        function loadYouTubeAPI() {
+            log('Loading YouTube Data API...');
+            
+            // For alternative auth, we already have the token set, so just enable the button
+            if (gapi.client.getToken()) {
+                log('SUCCESS: YouTube Data API ready (using alternative auth)');
+                document.getElementById('loadPlaylistsBtn').disabled = false;
+                return;
+            }
+            
+            // Fallback to traditional initialization if no token
+            gapi.client.init({
+                apiKey: YOUTUBE_CONFIG.API_KEY,
+                clientId: YOUTUBE_CONFIG.CLIENT_ID,
+                discoveryDocs: YOUTUBE_CONFIG.DISCOVERY_DOCS,
+                scope: YOUTUBE_CONFIG.SCOPES
+            }).then(function() {
+                log('SUCCESS: YouTube Data API loaded');
+                document.getElementById('loadPlaylistsBtn').disabled = false;
+            }).catch(function(error) {
+                log('ERROR loading YouTube API: ' + error.error);
+            });
+        }
+        
+        // Update auth status
+        function updateAuthStatus() {
+            const authSection = document.getElementById('authStatus');
+            const authMessage = document.getElementById('authMessage');
+            const signInBtn = document.getElementById('signInBtn');
+            const signOutBtn = document.getElementById('signOutBtn');
+            
+            if (isSignedIn) {
+                authMessage.textContent = '✅ Signed in to Google';
+                authSection.className = 'test-section success';
+                signInBtn.disabled = true;
+                signOutBtn.disabled = false;
+                document.getElementById('playlistMessage').textContent = 'Ready to load playlists!';
+            } else {
+                authMessage.textContent = '⚠️ Not signed in';
+                authSection.className = 'test-section warning';
+                signInBtn.disabled = false;
+                signOutBtn.disabled = true;
+                document.getElementById('playlistMessage').textContent = 'Sign in first to load playlists';
+            }
+        }
+        
+        // Sign in
+        function signIn() {
+            log('Attempting to sign in...');
+            
+            authInstance.signIn().then(function() {
+                isSignedIn = true;
+                log('SUCCESS: Signed in to Google');
+                updateAuthStatus();
+                loadYouTubeAPI();
+            }).catch(function(error) {
+                log('ERROR signing in: ' + error.error);
+            });
+        }
+        
+        // Sign out
+        function signOut() {
+            authInstance.signOut().then(function() {
+                isSignedIn = false;
+                log('Signed out from Google');
+                updateAuthStatus();
+                document.getElementById('loadPlaylistsBtn').disabled = true;
+                document.getElementById('playlistList').innerHTML = '';
+            });
+        }
+        
+        // Load playlists
+        function loadPlaylists() {
+            log('Loading your playlists...');
+            
+            const request = gapi.client.youtube.playlists.list({
+                part: 'snippet,contentDetails',
+                mine: true,
+                maxResults: 50
+            });
+            
+            request.execute(function(response) {
+                const playlists = response.items || [];
+                log(`Found ${playlists.length} playlists`);
+                
+                const playlistList = document.getElementById('playlistList');
+                const playlistSection = document.getElementById('playlistStatus');
+                
+                if (playlists.length === 0) {
+                    playlistList.innerHTML = '<p style="color: #888;">No playlists found. Create some playlists in YouTube first.</p>';
+                    playlistSection.className = 'test-section warning';
+                } else {
+                    playlistSection.className = 'test-section success';
+                    playlistList.innerHTML = '';
+                    
+                    playlists.forEach(playlist => {
+                        const div = document.createElement('div');
+                        div.className = 'playlist-item';
+                        div.innerHTML = `
+                            <div class="playlist-title">${playlist.snippet.title}</div>
+                            <div class="playlist-count">${playlist.contentDetails.itemCount || 0} songs</div>
+                        `;
+                        playlistList.appendChild(div);
+                    });
+                }
+                
+                document.getElementById('playlistMessage').textContent = 
+                    playlists.length > 0 ? 
+                    `✅ Successfully loaded ${playlists.length} playlists` : 
+                    '⚠️ No playlists found';
+            });
+        }
+        
+        // Initialize on page load
+        window.onload = function() {
+            log('Starting YouTube API test...');
+            
+            // Check API key
+            const apiKeyOk = checkApiKey();
+            
+            // Check Google APIs
+            const gapiOk = checkGoogleAPIs();
+            
+            if (apiKeyOk && gapiOk) {
+                log('✅ Ready to test YouTube integration!');
+            } else {
+                log('❌ Please fix the issues above before proceeding');
+            }
+        };
+    </script>
+</body>
+</html> 
