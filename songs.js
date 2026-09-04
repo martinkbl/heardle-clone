@@ -346,7 +346,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "T0DxKCme858",
     "title": "2much!",
-    "artist": "YUNG DASTARD - Topic",
+    "artist": "yung dastard - Topic",
     "original_title": "2much! (feat. yvngxchris)",
     "thumbnail": "https://i.ytimg.com/vi/T0DxKCme858/hqdefault.jpg"
   },
@@ -465,7 +465,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "cxB3qaSo2w4",
     "title": "Stylin'",
-    "artist": "Sainte - Topic",
+    "artist": "Sainté - Topic",
     "original_title": "Stylin'",
     "thumbnail": "https://i.ytimg.com/vi/cxB3qaSo2w4/hqdefault.jpg"
   },
@@ -549,7 +549,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "5epE7iC1UhM",
     "title": "Boo Thang",
-    "artist": "GARYSHAWN - Topic",
+    "artist": "Garyshawn - Topic",
     "original_title": "Boo Thang",
     "thumbnail": "https://i.ytimg.com/vi/5epE7iC1UhM/hqdefault.jpg"
   },
@@ -563,7 +563,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "AOiFarV1TZs",
     "title": "Onna Come Up",
-    "artist": "Lil Eazzyy - Topic",
+    "artist": "Lil Eazzy - Topic",
     "original_title": "Onna Come Up",
     "thumbnail": "https://i.ytimg.com/vi/AOiFarV1TZs/hqdefault.jpg"
   },
@@ -591,7 +591,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "koDMbAYqpQc",
     "title": "14",
-    "artist": "Tana - Topic",
+    "artist": "tana - Topic",
     "original_title": "14",
     "thumbnail": "https://i.ytimg.com/vi/koDMbAYqpQc/hqdefault.jpg"
   },
@@ -668,7 +668,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "bosXS49GLDw",
     "title": "East",
-    "artist": "Sainte - Topic",
+    "artist": "Sainté - Topic",
     "original_title": "East",
     "thumbnail": "https://i.ytimg.com/vi/bosXS49GLDw/hqdefault.jpg"
   },
@@ -1235,7 +1235,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "8Wkss0pd-pM",
     "title": "Champagne Shots",
-    "artist": "Sainte - Topic",
+    "artist": "Sainté - Topic",
     "original_title": "Champagne Shots",
     "thumbnail": "https://i.ytimg.com/vi/8Wkss0pd-pM/hqdefault.jpg"
   },
@@ -1256,7 +1256,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "Bmnj_M7VeIM",
     "title": "Est-ce que c'est vrai ?",
-    "artist": "BEENDO Z - Topic",
+    "artist": "Beendo Z - Topic",
     "original_title": "Est-ce que c'est vrai ? (feat. La Fève)",
     "thumbnail": "https://i.ytimg.com/vi/Bmnj_M7VeIM/hqdefault.jpg"
   },
@@ -1984,7 +1984,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "gzOuNrERA8c",
     "title": "Right Hand",
-    "artist": "98s - Topic",
+    "artist": "Unknown T - Topic",
     "original_title": "Right Hand",
     "thumbnail": "https://i.ytimg.com/vi/gzOuNrERA8c/hqdefault.jpg"
   },
@@ -2467,7 +2467,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "jM51EX8mv28",
     "title": "Alone",
-    "artist": "Ayrtn - Topic",
+    "artist": "ayrtn - Topic",
     "original_title": "Alone",
     "thumbnail": "https://i.ytimg.com/vi/jM51EX8mv28/hqdefault.jpg"
   },
@@ -2803,7 +2803,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "T4D8HtC-NlE",
     "title": "Round & Round",
-    "artist": "Sainte - Topic",
+    "artist": "Sainté - Topic",
     "original_title": "Round & Round",
     "thumbnail": "https://i.ytimg.com/vi/T4D8HtC-NlE/hqdefault.jpg"
   },
@@ -2817,14 +2817,14 @@ window.HEARDLE_SONGS = [
   {
     "id": "O7GemRp9hG4",
     "title": "On Me",
-    "artist": "Sainte - Topic",
+    "artist": "Sainté - Topic",
     "original_title": "On Me",
     "thumbnail": "https://i.ytimg.com/vi/O7GemRp9hG4/hqdefault.jpg"
   },
   {
     "id": "3lZ0odP46pA",
     "title": "Hunnids",
-    "artist": "Sainte - Topic",
+    "artist": "Sainté - Topic",
     "original_title": "Hunnids",
     "thumbnail": "https://i.ytimg.com/vi/3lZ0odP46pA/hqdefault.jpg"
   },
@@ -2915,7 +2915,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "8aNSq6Xwez0",
     "title": "listen!",
-    "artist": "hako - Topic",
+    "artist": "Hako - Topic",
     "original_title": "listen! (Bonus Track)",
     "thumbnail": "https://i.ytimg.com/vi/8aNSq6Xwez0/hqdefault.jpg"
   },
@@ -3160,14 +3160,14 @@ window.HEARDLE_SONGS = [
   {
     "id": "tgHxsBBn9-k",
     "title": "listen!",
-    "artist": "hako - Topic",
+    "artist": "Hako - Topic",
     "original_title": "listen!",
     "thumbnail": "https://i.ytimg.com/vi/tgHxsBBn9-k/hqdefault.jpg"
   },
   {
     "id": "LK04ObHECew",
     "title": "listen!",
-    "artist": "hako - Topic",
+    "artist": "Hako - Topic",
     "original_title": "listen! (sped up)",
     "thumbnail": "https://i.ytimg.com/vi/LK04ObHECew/hqdefault.jpg"
   },
@@ -3461,7 +3461,7 @@ window.HEARDLE_SONGS = [
   {
     "id": "2O1rBlsINSE",
     "title": "Dear Choppa.",
-    "artist": "NB Bankz - Topic",
+    "artist": "Nb Bankz - Topic",
     "original_title": "Dear, Choppa.",
     "thumbnail": "https://i.ytimg.com/vi/2O1rBlsINSE/hqdefault.jpg"
   },

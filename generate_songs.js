@@ -12,18 +12,32 @@ if (!API_KEY) {
     process.exit(1);
 }
 
+function cleanPlaylistId(rawId) {
+    let id = rawId.trim();
+    if (id.includes('list=')) {
+        id = id.split('list=')[1];
+    }
+    if (id.includes('&')) {
+        id = id.split('&')[0];
+    }
+    if (id.includes('?')) {
+        id = id.split('?')[0];
+    }
+    return id.trim();
+}
+
 // Parse playlists from configuration
 const playlists = [];
 if (PLAYLISTS_CONFIG) {
     PLAYLISTS_CONFIG.split(',').forEach(item => {
         const [id, name] = item.split(':');
         if (id && name) {
-            playlists.push({ id: id.trim(), name: name.trim() });
+            playlists.push({ id: cleanPlaylistId(id), name: name.trim() });
         }
     });
 } else if (process.env.YOUTUBE_PLAYLIST_ID) {
     // Fallback to single playlist
-    playlists.push({ id: process.env.YOUTUBE_PLAYLIST_ID.trim(), name: 'Default' });
+    playlists.push({ id: cleanPlaylistId(process.env.YOUTUBE_PLAYLIST_ID), name: 'Default' });
 }
 
 if (playlists.length === 0) {
