@@ -189,6 +189,109 @@
             color: #666;
             cursor: pointer;
             font-size: 18px;
+            z-index: 2;
+        }
+
+        .clear-button:hover {
+            color: #aaa;
+        }
+
+        /* Search Autocomplete Dropdown */
+        .autocomplete-dropdown {
+            position: absolute;
+            top: calc(100% + 6px);
+            left: 0;
+            right: 0;
+            background: #1a1a1a;
+            border: 1px solid #383838;
+            border-radius: 8px;
+            max-height: 280px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+            list-style: none;
+            padding: 4px 0;
+        }
+
+        .autocomplete-dropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .autocomplete-dropdown::-webkit-scrollbar-thumb {
+            background: #444;
+            border-radius: 3px;
+        }
+
+        .autocomplete-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 14px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+            text-align: left;
+            user-select: none;
+        }
+
+        .autocomplete-item:hover,
+        .autocomplete-item.active {
+            background: #282828;
+        }
+
+        .autocomplete-item.active {
+            border-left: 3px solid #1db954;
+            padding-left: 11px;
+        }
+
+        .autocomplete-item-icon {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            background: #242424;
+            color: #1db954;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .autocomplete-item-info {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex: 1;
+        }
+
+        .autocomplete-item-title {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .autocomplete-item-artist {
+            color: #888888;
+            font-size: 12px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-top: 2px;
+        }
+
+        .autocomplete-highlight {
+            color: #1db954;
+            font-weight: 700;
+        }
+
+        .autocomplete-no-results {
+            padding: 14px 16px;
+            color: #666;
+            font-size: 13px;
+            text-align: center;
         }
 
         /* Action buttons */
@@ -486,8 +589,9 @@
 
             <!-- Search input -->
             <div class="search-container">
-                <input type="text" class="search-input" placeholder="Know it? Search for the title" id="searchInput">
+                <input type="text" class="search-input" placeholder="Know it? Search for the title or artist" id="searchInput" autocomplete="off" spellcheck="false">
                 <button class="clear-button" id="clearButton">✕</button>
+                <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
             </div>
 
             <!-- Action buttons -->
@@ -538,6 +642,7 @@
         const totalTimeDisplay = document.getElementById('totalTime');
         const searchInput = document.getElementById('searchInput');
         const clearButton = document.getElementById('clearButton');
+        const autocompleteDropdown = document.getElementById('autocompleteDropdown');
         const skipButton = document.getElementById('skipButton');
         const submitButton = document.getElementById('submitButton');
         const gameOver = document.getElementById('gameOver');
@@ -546,6 +651,42 @@
         const instructionText = document.getElementById('instructionText');
         const audioLoading = document.getElementById('audioLoading');
         const progressContainer = document.querySelector('.progress-container');
+
+        // Autocomplete state
+        let currentSuggestions = [];
+        let activeSuggestionIndex = -1;
+        let selectedSongGuess = null;
+
+        function normalizeStr(str) {
+            return (str || '')
+                .toLowerCase()
+                .normalize('NFD')
+                .replace(/[\u0300-\u036f]/g, '') // remove accents
+                .replace(/[^a-z0-9\s]/gi, ' ') // normalize punctuation
+                .replace(/\s+/g, ' ')
+                .trim();
+        }
+
+        function escapeHtml(str) {
+            return String(str || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function highlightMatch(text, query) {
+            if (!query || !text) return escapeHtml(text || '');
+            const normText = normalizeStr(text);
+            const normQuery = normalizeStr(query);
+            const index = normText.indexOf(normQuery);
+            if (index === -1) return escapeHtml(text);
+
+            const before = text.slice(0, index);
+            const match = text.slice(index, index + query.length);
+            const after = text.slice(index + query.length);
+            return `${escapeHtml(before)}<span class="autocomplete-highlight">${escapeHtml(match)}</span>${escapeHtml(after)}`;
+        }
 
         // Initialize Game
         window.onload = async function () {
@@ -760,26 +901,147 @@
         }
 
         // ==========================================
+        // Autocomplete Logic
+        // ==========================================
+
+        function updateAutocomplete() {
+            if (gameEnded) {
+                hideAutocomplete();
+                return;
+            }
+
+            const query = searchInput.value.trim();
+            const normQuery = normalizeStr(query);
+            activeSuggestionIndex = -1;
+
+            if (normQuery.length === 0 || !songs || songs.length === 0) {
+                hideAutocomplete();
+                return;
+            }
+
+            // Filter songs from the active playlist
+            const seen = new Set();
+            const matches = [];
+
+            for (const s of songs) {
+                const titleNorm = normalizeStr(s.title);
+                const artistNorm = normalizeStr(s.artist);
+                const originalTitleNorm = normalizeStr(s.original_title || '');
+                const fullTextNorm = `${artistNorm} ${titleNorm}`;
+
+                const key = `${artistNorm} - ${titleNorm}`;
+                if (seen.has(key)) continue;
+
+                let score = -1;
+                if (titleNorm.startsWith(normQuery)) {
+                    score = 0; // Highest priority: title starts with query
+                } else if (artistNorm.startsWith(normQuery)) {
+                    score = 1; // High priority: artist starts with query
+                } else if (titleNorm.includes(normQuery)) {
+                    score = 2; // Title contains query
+                } else if (artistNorm.includes(normQuery)) {
+                    score = 3; // Artist contains query
+                } else if (fullTextNorm.includes(normQuery) || originalTitleNorm.includes(normQuery)) {
+                    score = 4; // Full / original title match
+                }
+
+                if (score !== -1) {
+                    seen.add(key);
+                    matches.push({ song: s, score });
+                }
+            }
+
+            // Sort by match score then alphabetically
+            matches.sort((a, b) => {
+                if (a.score !== b.score) return a.score - b.score;
+                return a.song.title.localeCompare(b.song.title);
+            });
+
+            currentSuggestions = matches.slice(0, 8).map(m => m.song);
+
+            if (currentSuggestions.length === 0) {
+                autocompleteDropdown.innerHTML = `<div class="autocomplete-no-results">No matches found</div>`;
+                autocompleteDropdown.style.display = 'block';
+                return;
+            }
+
+            // Render suggestions
+            autocompleteDropdown.innerHTML = currentSuggestions.map((song, index) => {
+                const highlightedTitle = highlightMatch(song.title, query);
+                const highlightedArtist = highlightMatch(song.artist, query);
+                return `
+                    <div class="autocomplete-item" data-index="${index}">
+                        <div class="autocomplete-item-icon">🎵</div>
+                        <div class="autocomplete-item-info">
+                            <div class="autocomplete-item-title">${highlightedTitle}</div>
+                            <div class="autocomplete-item-artist">${highlightedArtist}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            autocompleteDropdown.style.display = 'block';
+        }
+
+        function hideAutocomplete() {
+            autocompleteDropdown.style.display = 'none';
+            autocompleteDropdown.innerHTML = '';
+            currentSuggestions = [];
+            activeSuggestionIndex = -1;
+        }
+
+        function selectSuggestion(index) {
+            if (index < 0 || index >= currentSuggestions.length) return;
+            const chosen = currentSuggestions[index];
+            selectedSongGuess = chosen;
+            searchInput.value = `${chosen.artist} - ${chosen.title}`;
+            hideAutocomplete();
+            searchInput.focus();
+        }
+
+        function highlightActiveSuggestion() {
+            const items = autocompleteDropdown.querySelectorAll('.autocomplete-item');
+            items.forEach((item, idx) => {
+                if (idx === activeSuggestionIndex) {
+                    item.classList.add('active');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('active');
+                }
+            });
+        }
+
+        // ==========================================
         // Game Logic
         // ==========================================
 
         function submitGuess() {
             if (gameEnded) return;
 
-            const guess = searchInput.value.trim().toLowerCase();
-            if (!guess) return;
+            const rawGuess = searchInput.value.trim();
+            if (!rawGuess) return;
 
-            // Basic check - in a real game we'd fuzzy match against a list
-            const correctTitle = currentSong.title.toLowerCase();
-            const correctArtist = currentSong.artist.toLowerCase();
+            let isCorrect = false;
 
-            // Simple string matching
-            const isCorrect = guess.includes(correctTitle) || (guess.includes(correctTitle) && guess.includes(correctArtist));
+            if (selectedSongGuess && selectedSongGuess.id === currentSong.id) {
+                isCorrect = true;
+            } else {
+                const normGuess = normalizeStr(rawGuess);
+                const normTitle = normalizeStr(currentSong.title);
+                const normArtist = normalizeStr(currentSong.artist);
+                const normOriginal = normalizeStr(currentSong.original_title || '');
+
+                isCorrect = normGuess === normTitle ||
+                    normGuess === `${normArtist} ${normTitle}` ||
+                    normGuess === `${normTitle} ${normArtist}` ||
+                    (normTitle.length > 2 && normGuess.includes(normTitle)) ||
+                    (normOriginal.length > 2 && normGuess.includes(normOriginal));
+            }
 
             if (isCorrect) {
                 endGame(true);
             } else {
-                markAttempt(false);
+                markAttempt(false, rawGuess);
                 if (currentAttempt < MAX_ATTEMPTS) {
                     currentAttempt++;
                     updateGameState();
@@ -787,11 +1049,19 @@
                     endGame(false);
                 }
             }
+
+            // Reset input and autocomplete
             searchInput.value = '';
+            selectedSongGuess = null;
+            hideAutocomplete();
         }
 
         function skipAttempt() {
             if (gameEnded) return;
+
+            hideAutocomplete();
+            selectedSongGuess = null;
+            searchInput.value = '';
 
             markAttempt(true); // skipped
 
@@ -803,7 +1073,7 @@
             }
         }
 
-        function markAttempt(skipped) {
+        function markAttempt(skipped, guessText = '') {
             const boxes = document.querySelectorAll('.answer-box');
             const box = boxes[currentAttempt - 1];
 
@@ -812,7 +1082,7 @@
                 box.textContent = "SKIPPED";
             } else {
                 box.classList.add('incorrect');
-                box.textContent = searchInput.value || "INCORRECT";
+                box.textContent = guessText || searchInput.value || "INCORRECT";
             }
         }
 
@@ -899,6 +1169,11 @@
             progressBar.style.width = '0%';
             currentTimeDisplay.textContent = '0:00';
 
+            // Reset search and autocomplete
+            searchInput.value = '';
+            selectedSongGuess = null;
+            hideAutocomplete();
+
             // Reset game states
             currentAttempt = 1;
             gameEnded = false;
@@ -941,17 +1216,73 @@
             }
         }
 
-        // Search Autocomplete (Simple version)
-        searchInput.addEventListener('input', function () {
-            // In a real app, filtering currentSong.title against 1000s of songs needs a list
-            // For now, we assume strict match or simple contains
-        });
-
         function setupEventListeners() {
             playButton.addEventListener('click', playAudio);
             submitButton.addEventListener('click', submitGuess);
             skipButton.addEventListener('click', skipAttempt);
-            clearButton.addEventListener('click', () => searchInput.value = '');
+            clearButton.addEventListener('click', () => {
+                searchInput.value = '';
+                selectedSongGuess = null;
+                hideAutocomplete();
+                searchInput.focus();
+            });
+
+            // Autocomplete input listener
+            searchInput.addEventListener('input', updateAutocomplete);
+            searchInput.addEventListener('focus', () => {
+                if (searchInput.value.trim().length > 0) {
+                    updateAutocomplete();
+                }
+            });
+
+            // Keyboard navigation in search input
+            searchInput.addEventListener('keydown', (e) => {
+                if (autocompleteDropdown.style.display === 'block' && currentSuggestions.length > 0) {
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        activeSuggestionIndex = (activeSuggestionIndex + 1) % currentSuggestions.length;
+                        highlightActiveSuggestion();
+                        return;
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        activeSuggestionIndex = (activeSuggestionIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
+                        highlightActiveSuggestion();
+                        return;
+                    } else if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (activeSuggestionIndex >= 0 && currentSuggestions[activeSuggestionIndex]) {
+                            selectSuggestion(activeSuggestionIndex);
+                            return;
+                        }
+                        submitGuess();
+                        return;
+                    } else if (e.key === 'Escape') {
+                        hideAutocomplete();
+                        return;
+                    }
+                }
+
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    submitGuess();
+                }
+            });
+
+            // Click on autocomplete item (mousedown prevents premature blur)
+            autocompleteDropdown.addEventListener('mousedown', (e) => {
+                const item = e.target.closest('.autocomplete-item');
+                if (item && item.dataset.index !== undefined) {
+                    e.preventDefault();
+                    selectSuggestion(parseInt(item.dataset.index, 10));
+                }
+            });
+
+            // Close autocomplete when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.search-container')) {
+                    hideAutocomplete();
+                }
+            });
 
             // Playlist selector listener
             const playlistSelect = document.getElementById('playlistSelect');
@@ -984,11 +1315,6 @@
                     }
                 });
             }
-
-            // Enter key
-            searchInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') submitGuess();
-            });
         }
     </script>
 </body>
