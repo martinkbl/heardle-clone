@@ -1218,8 +1218,8 @@
                 if (items.length === 0) break;
 
                 const cleanItems = items.map(item => {
-                    const snippet = item.snippet;
-                    const videoId = item.contentDetails ? item.contentDetails.videoId : (snippet.resourceId ? snippet.resourceId.videoId : null);
+                    const snippet = item.snippet || {};
+                    const videoId = (item.contentDetails && item.contentDetails.videoId) ? item.contentDetails.videoId : (snippet.resourceId && snippet.resourceId.videoId ? snippet.resourceId.videoId : null);
                     let title = snippet.title || 'Unknown Title';
                     let artist = snippet.videoOwnerChannelTitle || 'Unknown Artist';
 
@@ -1556,47 +1556,103 @@
         }
 
         function initDailyGame() {
+            if (!songs || songs.length === 0) {
+                console.warn('No songs available in active playlist');
+                instructionText.textContent = "No songs found in this playlist.";
+                return;
+            }
+
             // Randomly select a song for "Unlimited" mode
             const songIndex = Math.floor(Math.random() * songs.length);
             currentSong = songs[songIndex];
 
-            console.log('Selected Song:', currentSong.title); // Debug
+            console.log('Selected Song:', currentSong.title, 'ID:', currentSong.id); // Debug
 
             // Initialize Player
-            loadYouTubeIframeAPI();
+            initYouTubePlayer();
+        }
+
+        function initYouTubePlayer() {
+            if (!currentSong || !currentSong.id) return;
+
+            if (player && player.cueVideoById) {
+                try {
+                    player.cueVideoById(currentSong.id);
+                    instructionText.textContent = "Ready! Turn up the volume and tap to start.";
+                    return;
+                } catch (e) {
+                    console.warn('Error cueing video on existing player:', e);
+                }
+            }
+
+            if (window.YT && window.YT.Player) {
+                createYTPlayer();
+            } else {
+                loadYouTubeIframeAPI();
+            }
+        }
+
+        function createYTPlayer() {
+            if (!currentSong || !currentSong.id) return;
+            try {
+                player = new YT.Player('gameAudio', {
+                    height: '1',
+                    width: '1',
+                    videoId: currentSong.id,
+                    playerVars: {
+                        'playsinline': 1,
+                        'controls': 0,
+                        'disablekb': 1,
+                        'fs': 0,
+                        'origin': window.location.origin
+                    },
+                    events: {
+                        'onReady': onPlayerReady,
+                        'onStateChange': onPlayerStateChange,
+                        'onError': onPlayerError
+                    }
+                });
+            } catch (e) {
+                console.error('Error creating YT.Player:', e);
+            }
         }
 
         function loadYouTubeIframeAPI() {
-            const tag = document.createElement('script');
-            tag.src = "https://www.youtube.com/iframe_api";
-            const firstScriptTag = document.getElementsByTagName('script')[0];
-            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            if (window.YT && window.YT.Player) {
+                createYTPlayer();
+                return;
+            }
+            if (!document.getElementById('yt-iframe-api-script')) {
+                const tag = document.createElement('script');
+                tag.id = 'yt-iframe-api-script';
+                tag.src = "https://www.youtube.com/iframe_api";
+                const firstScriptTag = document.getElementsByTagName('script')[0];
+                firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            }
         }
 
         // Called by YouTube API
         window.onYouTubeIframeAPIReady = function () {
-            player = new YT.Player('gameAudio', { // we use the gameAudio element
-                height: '1',
-                width: '1',
-                videoId: currentSong.id,
-                playerVars: {
-                    'playsinline': 1,
-                    'controls': 0,
-                    'disablekb': 1,
-                    'fs': 0
-                },
-                events: {
-                    'onReady': onPlayerReady,
-                    'onStateChange': onPlayerStateChange
-                }
-            });
+            createYTPlayer();
         };
 
         function onPlayerReady(event) {
             playerReady = true;
             instructionText.textContent = "Ready! Turn up the volume and tap to start.";
-            // Pre-buffer
-            player.setVolume(100);
+            try {
+                player.setVolume(100);
+            } catch (e) {}
+        }
+
+        function onPlayerError(event) {
+            console.warn('YouTube Player Error:', event.data);
+            // 2: Invalid video id, 5: HTML5 error, 100: Video removed/private, 101/150: Embedding disabled
+            if (event.data === 101 || event.data === 150 || event.data === 100 || event.data === 2) {
+                instructionText.textContent = "⚠️ Video not playable in embed. Skipping to next song...";
+                setTimeout(() => {
+                    resetGame(false);
+                }, 1200);
+            }
         }
 
         function onPlayerStateChange(event) {
@@ -1637,7 +1693,15 @@
 
         // Audio Control (Toggles play/pause; handles full playback at game over)
         function playAudio() {
-            if (!playerReady) return;
+            if (!player) {
+                initYouTubePlayer();
+                instructionText.textContent = "Loading audio, please tap again in a moment...";
+                return;
+            }
+
+            if (!playerReady && player.playVideo) {
+                playerReady = true;
+            }
 
             // Full playback mode when game is over
             if (gameEnded) {
@@ -1664,7 +1728,9 @@
                     clearTimeout(playbackTimer);
                     playbackTimer = null;
                 }
-                player.pauseVideo();
+                try {
+                    player.pauseVideo();
+                } catch (e) {}
                 isPlaying = false;
                 playButton.textContent = "▶";
                 progressBar.style.width = '0%';
@@ -1675,14 +1741,20 @@
                 isPlaying = true;
                 playButton.textContent = "⏸";
 
-                player.seekTo(0);
-                player.playVideo();
+                try {
+                    player.seekTo(0, true);
+                    player.playVideo();
+                } catch (e) {
+                    console.error('Error starting video playback:', e);
+                }
 
                 animateProgressBar(duration);
 
                 playbackTimer = setTimeout(() => {
-                    player.pauseVideo();
-                    player.seekTo(0);
+                    try {
+                        player.pauseVideo();
+                        player.seekTo(0, true);
+                    } catch (e) {}
                     isPlaying = false;
                     playButton.textContent = "▶";
                     progressBar.style.width = '0%';
@@ -2026,9 +2098,15 @@
             currentSong = songs[songIndex];
             console.log('Selected Song:', currentSong.title); // Debug
 
-            // If player is already loaded, cue/load the new video
-            if (playerReady && player && player.cueVideoById) {
-                player.cueVideoById(currentSong.id);
+            // If player is already loaded, cue the new video
+            if (player && player.cueVideoById) {
+                try {
+                    player.cueVideoById(currentSong.id);
+                } catch (e) {
+                    initYouTubePlayer();
+                }
+            } else {
+                initYouTubePlayer();
             }
         }
 
