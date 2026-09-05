@@ -506,17 +506,366 @@
             color: #fff;
             border: 2px solid #444;
             border-radius: 8px;
-            padding: 8px 16px;
-            font-size: 14px;
+            padding: 8px 14px;
+            font-size: 13px;
             font-weight: 600;
             outline: none;
             cursor: pointer;
             transition: border-color 0.2s, background-color 0.2s;
+            max-width: 180px;
         }
 
         .playlist-select:hover, .playlist-select:focus {
             border-color: #1db954;
             background: #2a2a2a;
+        }
+
+        .playlist-select optgroup {
+            background: #181818;
+            color: #1db954;
+            font-weight: 700;
+        }
+
+        .playlist-select option {
+            background: #222;
+            color: #fff;
+            font-weight: normal;
+        }
+
+        /* Header action buttons */
+        .header-action-btn {
+            background: #222;
+            color: #fff;
+            border: 2px solid #444;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 600;
+            outline: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .header-action-btn:hover {
+            border-color: #1db954;
+            background: #2a2a2a;
+            color: #1db954;
+        }
+
+        .header-btn-secondary:hover {
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        /* Modal Backdrop & Dialog */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            backdrop-filter: blur(5px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            padding: 20px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .modal-backdrop.hidden {
+            display: none;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-dialog {
+            background: #181818;
+            border: 1px solid #333;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 520px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.25s ease-out;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #282828;
+            background: #1e1e1e;
+        }
+
+        .modal-header h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-description {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .modal-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .modal-form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ccc;
+        }
+
+        .label-optional {
+            color: #777;
+            font-weight: normal;
+        }
+
+        .modal-form-group input {
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 11px 14px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .modal-form-group input:focus {
+            border-color: #1db954;
+        }
+
+        .fetch-status-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #202020;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
+        .fetch-status-spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #444;
+            border-top-color: #1db954;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .fetch-status-text {
+            font-size: 13px;
+            color: #1db954;
+            font-weight: 500;
+        }
+
+        .modal-error-text {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .modal-btn {
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-btn:hover:not(:disabled) {
+            opacity: 0.85;
+        }
+
+        .modal-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal-btn-cancel {
+            background: #2a2a2a;
+            color: #ccc;
+        }
+
+        .modal-btn-primary {
+            background: #1db954;
+            color: #000;
+            font-weight: 700;
+        }
+
+        /* Saved Playlists list in modal */
+        .saved-playlists-section {
+            border-top: 1px solid #2a2a2a;
+            padding-top: 16px;
+            margin-top: 4px;
+        }
+
+        .saved-playlists-section h4 {
+            font-size: 13px;
+            color: #aaa;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .saved-playlists-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .saved-playlist-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #222;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .saved-playlist-info {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-right: 8px;
+        }
+
+        .saved-playlist-name {
+            color: #fff;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .saved-playlist-count {
+            color: #777;
+            font-size: 11px;
+        }
+
+        .saved-playlist-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .saved-playlist-play-btn {
+            background: #1db954;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .saved-playlist-delete-btn {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .saved-playlist-delete-btn:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
+        /* Toast notification */
+        .toast-notification {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1db954;
+            color: #000;
+            font-weight: 700;
+            padding: 12px 24px;
+            border-radius: 25px;
+            font-size: 14px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
+            z-index: 3000;
+            animation: popIn 0.3s ease-out;
+        }
+
+        @keyframes popIn {
+            from { transform: translate(-50%, 20px); opacity: 0; }
+            to { transform: translate(-50%, 0); opacity: 1; }
         }
     </style>
 </head>
@@ -534,6 +883,8 @@
                 <select id="playlistSelect" class="playlist-select" title="Choose Playlist">
                     <!-- Dynamically populated -->
                 </select>
+                <button id="addPlaylistBtn" class="header-action-btn" title="Add Custom YouTube Playlist">➕ Add</button>
+                <button id="sharePlaylistBtn" class="header-action-btn header-btn-secondary" title="Share current playlist game">🔗 Share</button>
             </div>
         </div>
 
@@ -613,6 +964,58 @@
         </div>
     </div>
 
+    <!-- Modal for adding/managing custom playlists -->
+    <div class="modal-backdrop hidden" id="customPlaylistModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>Add Custom Playlist</h3>
+                <button class="modal-close" id="closePlaylistModalBtn" title="Close">✕</button>
+            </div>
+            
+            <div class="modal-body">
+                <p class="modal-description">
+                    Paste any public YouTube playlist link or ID to load its songs and play Heardle with your music!
+                </p>
+
+                <div class="modal-form-group">
+                    <label for="customPlaylistUrlInput">YouTube Playlist Link or ID</label>
+                    <input type="text" id="customPlaylistUrlInput" placeholder="https://www.youtube.com/playlist?list=PL..." autocomplete="off">
+                </div>
+
+                <div class="modal-form-group">
+                    <label for="customPlaylistNameInput">Playlist Name <span class="label-optional">(optional)</span></label>
+                    <input type="text" id="customPlaylistNameInput" placeholder="e.g. My Favorites 2024" autocomplete="off">
+                </div>
+
+                <!-- Live Progress indicator -->
+                <div class="fetch-status-container hidden" id="fetchStatusContainer">
+                    <div class="fetch-status-spinner"></div>
+                    <div class="fetch-status-text" id="fetchStatusText">Connecting to YouTube API...</div>
+                </div>
+
+                <div class="modal-error-text hidden" id="modalErrorText"></div>
+
+                <div class="modal-actions">
+                    <button class="modal-btn modal-btn-cancel" id="cancelPlaylistModalBtn">Cancel</button>
+                    <button class="modal-btn modal-btn-primary" id="submitCustomPlaylistBtn">Load & Play</button>
+                </div>
+
+                <!-- Saved Custom Playlists Section -->
+                <div class="saved-playlists-section" id="savedPlaylistsSection">
+                    <h4>Your Saved Playlists</h4>
+                    <div class="saved-playlists-list" id="savedPlaylistsList">
+                        <!-- Populated with saved playlists -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification for Share / Copy Link -->
+    <div class="toast-notification hidden" id="toastNotification">Link copied to clipboard!</div>
+
+    <!-- YouTube Config (API Key) -->
+    <script src="config.js"></script>
     <!-- Load local fallback playlists if file:// protocol blocks fetch -->
     <script src="playlists.js"></script>
     <script>
@@ -651,12 +1054,39 @@
         const instructionText = document.getElementById('instructionText');
         const audioLoading = document.getElementById('audioLoading');
         const progressContainer = document.querySelector('.progress-container');
+        const playlistSelect = document.getElementById('playlistSelect');
+        const addPlaylistBtn = document.getElementById('addPlaylistBtn');
+        const sharePlaylistBtn = document.getElementById('sharePlaylistBtn');
+        const customPlaylistModal = document.getElementById('customPlaylistModal');
+        const closePlaylistModalBtn = document.getElementById('closePlaylistModalBtn');
+        const cancelPlaylistModalBtn = document.getElementById('cancelPlaylistModalBtn');
+        const submitCustomPlaylistBtn = document.getElementById('submitCustomPlaylistBtn');
+        const customPlaylistUrlInput = document.getElementById('customPlaylistUrlInput');
+        const customPlaylistNameInput = document.getElementById('customPlaylistNameInput');
+        const fetchStatusContainer = document.getElementById('fetchStatusContainer');
+        const fetchStatusText = document.getElementById('fetchStatusText');
+        const modalErrorText = document.getElementById('modalErrorText');
+        const savedPlaylistsList = document.getElementById('savedPlaylistsList');
+        const toastNotification = document.getElementById('toastNotification');
 
         // Autocomplete state
         let currentSuggestions = [];
         let activeSuggestionIndex = -1;
         let selectedSongGuess = null;
 
+        // Toast helper
+        let toastTimeout = null;
+        function showToast(message) {
+            if (!toastNotification) return;
+            toastNotification.textContent = message;
+            toastNotification.classList.remove('hidden');
+            if (toastTimeout) clearTimeout(toastTimeout);
+            toastTimeout = setTimeout(() => {
+                toastNotification.classList.add('hidden');
+            }, 3000);
+        }
+
+        // String helpers
         function normalizeStr(str) {
             return (str || '')
                 .toLowerCase()
@@ -688,6 +1118,388 @@
             return `${escapeHtml(before)}<span class="autocomplete-highlight">${escapeHtml(match)}</span>${escapeHtml(after)}`;
         }
 
+        // ==========================================
+        // Custom Playlists & LocalStorage Management
+        // ==========================================
+        const STORAGE_KEY = 'heardle_custom_playlists_v1';
+
+        function extractPlaylistId(rawInput) {
+            if (!rawInput) return '';
+            let val = rawInput.trim();
+            if (val.includes('list=')) {
+                val = val.split('list=')[1];
+            }
+            if (val.includes('&')) {
+                val = val.split('&')[0];
+            }
+            if (val.includes('?')) {
+                val = val.split('?')[0];
+            }
+            if (val.includes('#')) {
+                val = val.split('#')[0];
+            }
+            return val.trim();
+        }
+
+        function getSavedCustomPlaylists() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                if (raw) return JSON.parse(raw);
+            } catch (e) {
+                console.warn('Error reading custom playlists from localStorage:', e);
+            }
+            return {};
+        }
+
+        function saveCustomPlaylistToStorage(key, playlistObj) {
+            try {
+                const current = getSavedCustomPlaylists();
+                current[key] = playlistObj;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+            } catch (e) {
+                console.warn('Error saving custom playlist to localStorage:', e);
+            }
+        }
+
+        function deleteCustomPlaylistFromStorage(key) {
+            try {
+                const current = getSavedCustomPlaylists();
+                delete current[key];
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
+            } catch (e) {
+                console.warn('Error deleting custom playlist from localStorage:', e);
+            }
+        }
+
+        async function fetchYouTubePlaylistFromBrowser(playlistId, customName = '', onProgress = null) {
+            const apiKey = (window.YOUTUBE_CONFIG && window.YOUTUBE_CONFIG.API_KEY) || 'AIzaSyDA4eTxUyaC8s8rHlOp4AjKNqjycDljte4';
+            let resolvedName = customName ? customName.trim() : '';
+
+            // Optionally fetch playlist title from API if not provided
+            if (!resolvedName) {
+                try {
+                    const plRes = await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}`);
+                    if (plRes.ok) {
+                        const plData = await plRes.json();
+                        if (plData.items && plData.items[0] && plData.items[0].snippet && plData.items[0].snippet.title) {
+                            resolvedName = plData.items[0].snippet.title;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Could not fetch playlist snippet:', e);
+                }
+            }
+
+            if (!resolvedName) {
+                resolvedName = `Playlist ${playlistId.slice(0, 8)}`;
+            }
+
+            let allSongs = [];
+            let nextPageToken = '';
+            let pageCount = 0;
+
+            do {
+                pageCount++;
+                if (onProgress) {
+                    onProgress(`Fetching page ${pageCount}... (${allSongs.length} songs so far)`);
+                }
+
+                const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}${nextPageToken ? '&pageToken=' + encodeURIComponent(nextPageToken) : ''}`;
+
+                const res = await fetch(url);
+                if (!res.ok) {
+                    const errData = await res.json().catch(() => ({}));
+                    const errMsg = (errData.error && errData.error.message) ? errData.error.message : `HTTP ${res.status}`;
+                    throw new Error(errMsg);
+                }
+
+                const data = await res.json();
+                const items = data.items || [];
+                if (items.length === 0) break;
+
+                const cleanItems = items.map(item => {
+                    const snippet = item.snippet;
+                    const videoId = item.contentDetails ? item.contentDetails.videoId : (snippet.resourceId ? snippet.resourceId.videoId : null);
+                    let title = snippet.title || 'Unknown Title';
+                    let artist = snippet.videoOwnerChannelTitle || 'Unknown Artist';
+
+                    if (title.includes(' - ')) {
+                        const parts = title.split(' - ');
+                        artist = parts[0].trim();
+                        title = parts.slice(1).join(' - ').trim();
+                    }
+
+                    title = title
+                        .replace(/[\(\[\{].*?[\)\]\}]/g, '')
+                        .replace(/Official Video/gi, '')
+                        .replace(/Official Audio/gi, '')
+                        .replace(/Lyrics/gi, '')
+                        .replace(/ft\./gi, '')
+                        .replace(/feat\./gi, '')
+                        .replace(/,/g, '')
+                        .trim();
+
+                    return {
+                        id: videoId,
+                        title: title,
+                        artist: artist,
+                        original_title: snippet.title,
+                        thumbnail: snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url
+                    };
+                }).filter(s => s.id && s.title !== 'Private video' && s.title !== 'Deleted video');
+
+                allSongs = allSongs.concat(cleanItems);
+                nextPageToken = data.nextPageToken;
+
+            } while (nextPageToken && pageCount < 60);
+
+            if (allSongs.length === 0) {
+                throw new Error('No playable songs found in this playlist (it might be private or empty).');
+            }
+
+            return {
+                id: playlistId,
+                name: resolvedName,
+                songs: allSongs
+            };
+        }
+
+        function populatePlaylistSelect() {
+            playlistSelect.innerHTML = '';
+
+            const keys = Object.keys(playlistsData);
+            const defaultKeys = keys.filter(k => !playlistsData[k].isCustom);
+            const customKeys = keys.filter(k => playlistsData[k].isCustom);
+
+            if (defaultKeys.length > 0) {
+                const defaultGroup = document.createElement('optgroup');
+                defaultGroup.label = 'Default Playlists';
+                defaultKeys.forEach(k => {
+                    const opt = document.createElement('option');
+                    opt.value = k;
+                    opt.textContent = `${playlistsData[k].name} (${playlistsData[k].songs.length})`;
+                    defaultGroup.appendChild(opt);
+                });
+                playlistSelect.appendChild(defaultGroup);
+            }
+
+            if (customKeys.length > 0) {
+                const customGroup = document.createElement('optgroup');
+                customGroup.label = 'Custom Playlists';
+                customKeys.forEach(k => {
+                    const opt = document.createElement('option');
+                    opt.value = k;
+                    opt.textContent = `★ ${playlistsData[k].name} (${playlistsData[k].songs.length})`;
+                    customGroup.appendChild(opt);
+                });
+                playlistSelect.appendChild(customGroup);
+            }
+
+            if (activePlaylistKey && playlistsData[activePlaylistKey]) {
+                playlistSelect.value = activePlaylistKey;
+            } else if (keys.length > 0) {
+                activePlaylistKey = keys[0];
+                playlistSelect.value = activePlaylistKey;
+            }
+        }
+
+        function switchToPlaylist(key) {
+            if (!playlistsData[key]) return;
+            activePlaylistKey = key;
+            songs = playlistsData[activePlaylistKey].songs;
+            playlistSelect.value = activePlaylistKey;
+            document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
+            resetGame(true);
+        }
+
+        function renderSavedPlaylistsInModal() {
+            savedPlaylistsList.innerHTML = '';
+            const customSaved = getSavedCustomPlaylists();
+            const keys = Object.keys(customSaved);
+
+            if (keys.length === 0) {
+                savedPlaylistsList.innerHTML = `<div style="color: #666; font-size: 12px; text-align: center; padding: 8px;">No custom playlists saved yet.</div>`;
+                return;
+            }
+
+            keys.forEach(key => {
+                const pl = customSaved[key];
+                const row = document.createElement('div');
+                row.className = 'saved-playlist-row';
+                row.innerHTML = `
+                    <div class="saved-playlist-info">
+                        <span class="saved-playlist-name">${escapeHtml(pl.name)}</span>
+                        <span class="saved-playlist-count">${pl.songs ? pl.songs.length : 0} songs</span>
+                    </div>
+                    <div class="saved-playlist-actions">
+                        <button class="saved-playlist-play-btn" data-key="${key}">Play</button>
+                        <button class="saved-playlist-delete-btn" data-key="${key}" title="Delete playlist">🗑️</button>
+                    </div>
+                `;
+                savedPlaylistsList.appendChild(row);
+            });
+
+            // Play button clicks in modal
+            savedPlaylistsList.querySelectorAll('.saved-playlist-play-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const key = btn.dataset.key;
+                    closeCustomPlaylistModal();
+                    switchToPlaylist(key);
+                });
+            });
+
+            // Delete button clicks in modal
+            savedPlaylistsList.querySelectorAll('.saved-playlist-delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const key = btn.dataset.key;
+                    if (confirm(`Remove custom playlist "${customSaved[key].name}"?`)) {
+                        deleteCustomPlaylistFromStorage(key);
+                        delete playlistsData[key];
+                        populatePlaylistSelect();
+                        renderSavedPlaylistsInModal();
+                        if (activePlaylistKey === key) {
+                            const remainingKeys = Object.keys(playlistsData);
+                            if (remainingKeys.length > 0) {
+                                switchToPlaylist(remainingKeys[0]);
+                            }
+                        }
+                    }
+                });
+            });
+        }
+
+        function openCustomPlaylistModal() {
+            modalErrorText.classList.add('hidden');
+            modalErrorText.textContent = '';
+            fetchStatusContainer.classList.add('hidden');
+            customPlaylistUrlInput.value = '';
+            customPlaylistNameInput.value = '';
+            submitCustomPlaylistBtn.disabled = false;
+            submitCustomPlaylistBtn.textContent = 'Load & Play';
+            renderSavedPlaylistsInModal();
+            customPlaylistModal.classList.remove('hidden');
+            customPlaylistUrlInput.focus();
+        }
+
+        function closeCustomPlaylistModal() {
+            customPlaylistModal.classList.add('hidden');
+        }
+
+        async function handleCustomPlaylistSubmit() {
+            modalErrorText.classList.add('hidden');
+            modalErrorText.textContent = '';
+
+            const rawInput = customPlaylistUrlInput.value.trim();
+            const customName = customPlaylistNameInput.value.trim();
+
+            if (!rawInput) {
+                modalErrorText.textContent = 'Please enter a YouTube playlist link or ID.';
+                modalErrorText.classList.remove('hidden');
+                return;
+            }
+
+            const playlistId = extractPlaylistId(rawInput);
+            if (!playlistId || playlistId.length < 5) {
+                modalErrorText.textContent = 'Invalid YouTube playlist link or ID.';
+                modalErrorText.classList.remove('hidden');
+                return;
+            }
+
+            fetchStatusContainer.classList.remove('hidden');
+            fetchStatusText.textContent = 'Connecting to YouTube API...';
+            submitCustomPlaylistBtn.disabled = true;
+            submitCustomPlaylistBtn.textContent = 'Loading...';
+
+            try {
+                const result = await fetchYouTubePlaylistFromBrowser(playlistId, customName, (progress) => {
+                    fetchStatusText.textContent = progress;
+                });
+
+                const key = `custom_${playlistId}`;
+                playlistsData[key] = {
+                    id: playlistId,
+                    name: result.name,
+                    songs: result.songs,
+                    isCustom: true,
+                    playlistId: playlistId
+                };
+
+                saveCustomPlaylistToStorage(key, playlistsData[key]);
+                populatePlaylistSelect();
+                closeCustomPlaylistModal();
+                switchToPlaylist(key);
+                showToast(`Loaded "${result.name}" with ${result.songs.length} songs!`);
+
+            } catch (err) {
+                console.error('Error adding custom playlist:', err);
+                fetchStatusContainer.classList.add('hidden');
+                modalErrorText.textContent = `Error: ${err.message || 'Failed to fetch playlist'}`;
+                modalErrorText.classList.remove('hidden');
+                submitCustomPlaylistBtn.disabled = false;
+                submitCustomPlaylistBtn.textContent = 'Load & Play';
+            }
+        }
+
+        function shareCurrentPlaylist() {
+            const current = playlistsData[activePlaylistKey];
+            if (!current) return;
+
+            let shareUrl = `${window.location.origin}${window.location.pathname}`;
+            if (current.isCustom && current.playlistId) {
+                shareUrl += `?playlist=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
+            } else {
+                shareUrl += `?playlist=${encodeURIComponent(activePlaylistKey)}`;
+            }
+
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    showToast(`🔗 Link copied to clipboard!`);
+                }).catch(() => {
+                    prompt("Copy link to share this playlist:", shareUrl);
+                });
+            } else {
+                prompt("Copy link to share this playlist:", shareUrl);
+            }
+        }
+
+        async function checkUrlForSharedPlaylist() {
+            const params = new URLSearchParams(window.location.search);
+            const playlistParam = params.get('playlist') || params.get('custom');
+            const nameParam = params.get('name') || '';
+
+            if (playlistParam) {
+                const cleanId = extractPlaylistId(playlistParam);
+                const customKey = `custom_${cleanId}`;
+
+                if (playlistsData[playlistParam]) {
+                    switchToPlaylist(playlistParam);
+                    return;
+                } else if (playlistsData[customKey]) {
+                    switchToPlaylist(customKey);
+                    return;
+                }
+
+                showToast(`Loading shared playlist (${nameParam || cleanId})...`);
+                try {
+                    const result = await fetchYouTubePlaylistFromBrowser(cleanId, nameParam);
+                    playlistsData[customKey] = {
+                        id: cleanId,
+                        name: result.name,
+                        songs: result.songs,
+                        isCustom: true,
+                        playlistId: cleanId
+                    };
+                    saveCustomPlaylistToStorage(customKey, playlistsData[customKey]);
+                    populatePlaylistSelect();
+                    switchToPlaylist(customKey);
+                    showToast(`Loaded "${result.name}" with ${result.songs.length} songs!`);
+                } catch (err) {
+                    console.error('Failed to load shared playlist from URL:', err);
+                    showToast(`Could not load shared playlist: ${err.message}`);
+                }
+            }
+        }
+
         // Initialize Game
         window.onload = async function () {
             setupEventListeners();
@@ -714,27 +1526,31 @@
                 }
             }
 
-            // Populate the dropdown selector
-            const playlistSelect = document.getElementById('playlistSelect');
-            playlistSelect.innerHTML = '';
-            
+            // Merge saved custom playlists from localStorage
+            const savedCustom = getSavedCustomPlaylists();
+            Object.keys(savedCustom).forEach(key => {
+                playlistsData[key] = savedCustom[key];
+            });
+
+            // Populate playlist dropdown with Built-in & Custom groups
+            populatePlaylistSelect();
+
             const playlistKeys = Object.keys(playlistsData);
             if (playlistKeys.length === 0) {
-                alert('playlists.json is empty. Run the generator script!');
+                alert('No playlists available. Please add a playlist to get started!');
                 return;
             }
 
-            playlistKeys.forEach(key => {
-                const option = document.createElement('option');
-                option.value = key;
-                option.textContent = playlistsData[key].name;
-                playlistSelect.appendChild(option);
-            });
+            // Check if there is a shared playlist in URL params
+            await checkUrlForSharedPlaylist();
 
-            // Set default playlist
-            activePlaylistKey = playlistKeys[0];
-            songs = playlistsData[activePlaylistKey].songs;
-            document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
+            // Set default playlist if not already set by URL params
+            if (!activePlaylistKey || !playlistsData[activePlaylistKey]) {
+                activePlaylistKey = playlistKeys[0];
+                songs = playlistsData[activePlaylistKey].songs;
+                playlistSelect.value = activePlaylistKey;
+                document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
+            }
 
             initDailyGame();
         }
@@ -1285,13 +2101,27 @@
             });
 
             // Playlist selector listener
-            const playlistSelect = document.getElementById('playlistSelect');
             playlistSelect.addEventListener('change', function () {
-                activePlaylistKey = this.value;
-                songs = playlistsData[activePlaylistKey].songs;
-                document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
-                resetGame(true);
+                switchToPlaylist(this.value);
             });
+
+            // Modal event listeners
+            addPlaylistBtn.addEventListener('click', openCustomPlaylistModal);
+            closePlaylistModalBtn.addEventListener('click', closeCustomPlaylistModal);
+            cancelPlaylistModalBtn.addEventListener('click', closeCustomPlaylistModal);
+            submitCustomPlaylistBtn.addEventListener('click', handleCustomPlaylistSubmit);
+            customPlaylistUrlInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') handleCustomPlaylistSubmit();
+            });
+            customPlaylistNameInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') handleCustomPlaylistSubmit();
+            });
+            customPlaylistModal.addEventListener('click', (e) => {
+                if (e.target === customPlaylistModal) closeCustomPlaylistModal();
+            });
+
+            // Share button listener
+            sharePlaylistBtn.addEventListener('click', shareCurrentPlaylist);
 
             // Click on progress bar to seek (only when gameEnded is true)
             if (progressContainer) {
