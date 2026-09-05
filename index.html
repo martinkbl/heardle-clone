@@ -806,11 +806,36 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .playlist-badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .spotify-badge {
+            background: rgba(29, 185, 84, 0.2);
+            color: #1db954;
+            border: 1px solid rgba(29, 185, 84, 0.4);
+        }
+
+        .yt-badge {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.4);
         }
 
         .saved-playlist-count {
             color: #777;
             font-size: 11px;
+            margin-top: 2px;
         }
 
         .saved-playlist-actions {
@@ -974,12 +999,12 @@
             
             <div class="modal-body">
                 <p class="modal-description">
-                    Paste any public YouTube playlist link or ID to load its songs and play Heardle with your music!
+                    Paste any public <strong>YouTube</strong> or <strong>Spotify</strong> playlist link to load its songs and play Heardle with your music!
                 </p>
 
                 <div class="modal-form-group">
-                    <label for="customPlaylistUrlInput">YouTube Playlist Link or ID</label>
-                    <input type="text" id="customPlaylistUrlInput" placeholder="https://www.youtube.com/playlist?list=PL..." autocomplete="off">
+                    <label for="customPlaylistUrlInput">YouTube or Spotify Playlist Link</label>
+                    <input type="text" id="customPlaylistUrlInput" placeholder="https://open.spotify.com/playlist/... or https://www.youtube.com/playlist?list=..." autocomplete="off">
                 </div>
 
                 <div class="modal-form-group">
@@ -1123,6 +1148,27 @@
         // ==========================================
         const STORAGE_KEY = 'heardle_custom_playlists_v1';
 
+        function isSpotifyUrl(rawInput) {
+            if (!rawInput) return false;
+            const str = rawInput.trim().toLowerCase();
+            return str.includes('spotify.com') || str.startsWith('spotify:');
+        }
+
+        function extractSpotifyPlaylistId(rawInput) {
+            if (!rawInput) return '';
+            let val = rawInput.trim();
+            if (val.includes('/playlist/')) {
+                val = val.split('/playlist/')[1];
+            } else if (val.includes('spotify:playlist:')) {
+                val = val.split('spotify:playlist:')[1];
+            }
+            if (val.includes('?')) val = val.split('?')[0];
+            if (val.includes('&')) val = val.split('&')[0];
+            if (val.includes('/')) val = val.split('/')[0];
+            if (val.includes('#')) val = val.split('#')[0];
+            return val.trim();
+        }
+
         function extractPlaylistId(rawInput) {
             if (!rawInput) return '';
             let val = rawInput.trim();
@@ -1169,6 +1215,26 @@
             } catch (e) {
                 console.warn('Error deleting custom playlist from localStorage:', e);
             }
+        }
+
+        async function fetchSpotifyPlaylist(urlOrId, customName = '', onProgress = null) {
+            if (onProgress) onProgress('Fetching Spotify playlist...');
+            const endpoint = `/api/spotify?url=${encodeURIComponent(urlOrId)}`;
+            const res = await fetch(endpoint);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP ${res.status}: Failed to load Spotify playlist`);
+            }
+            const data = await res.json();
+            if (!data.songs || data.songs.length === 0) {
+                throw new Error('No playable songs found in this Spotify playlist.');
+            }
+            return {
+                id: data.id,
+                name: customName ? customName.trim() : (data.name || 'Spotify Playlist'),
+                source: 'spotify',
+                songs: data.songs
+            };
         }
 
         async function fetchYouTubePlaylistFromBrowser(playlistId, customName = '', onProgress = null) {
@@ -1260,8 +1326,64 @@
             return {
                 id: playlistId,
                 name: resolvedName,
+                source: 'youtube',
                 songs: allSongs
             };
+        }
+
+        async function resolveSongAudio(song) {
+            if (song.id) return song.id;
+
+            const cleanArtist = song.artist ? song.artist.split(',')[0].trim() : '';
+            const query = `${cleanArtist} ${song.title} audio`;
+
+            // 1. Try serverless match endpoint (/api/match)
+            try {
+                const matchRes = await fetch(`/api/match?q=${encodeURIComponent(query)}`);
+                if (matchRes.ok) {
+                    const matchData = await matchRes.json();
+                    if (matchData.videoId) {
+                        song.id = matchData.videoId;
+                        return song.id;
+                    }
+                }
+            } catch (e) {
+                console.warn('/api/match endpoint attempt failed, trying direct client API...', e);
+            }
+
+            // 2. Direct client YouTube search API fallback
+            const apiKey = (window.YOUTUBE_CONFIG && window.YOUTUBE_CONFIG.API_KEY) || 'AIzaSyDA4eTxUyaC8s8rHlOp4AjKNqjycDljte4';
+            try {
+                const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=1&key=${encodeURIComponent(apiKey)}`;
+                const res = await fetch(searchUrl);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.items && data.items.length > 0 && data.items[0].id?.videoId) {
+                        song.id = data.items[0].id.videoId;
+                        return song.id;
+                    }
+                }
+            } catch (e) {
+                console.warn('Direct client YouTube search failed:', e);
+            }
+
+            // 3. Fallback search with full artist and title
+            try {
+                const fallbackQuery = `${song.artist} ${song.title}`;
+                const fbUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(fallbackQuery)}&type=video&maxResults=1&key=${encodeURIComponent(apiKey)}`;
+                const fbRes = await fetch(fbUrl);
+                if (fbRes.ok) {
+                    const fbData = await fbRes.json();
+                    if (fbData.items && fbData.items.length > 0 && fbData.items[0].id?.videoId) {
+                        song.id = fbData.items[0].id.videoId;
+                        return song.id;
+                    }
+                }
+            } catch (e) {
+                console.warn('Fallback search failed:', e);
+            }
+
+            throw new Error(`Could not find audio for ${song.artist} - ${song.title}`);
         }
 
         function populatePlaylistSelect() {
@@ -1287,9 +1409,11 @@
                 const customGroup = document.createElement('optgroup');
                 customGroup.label = 'Custom Playlists';
                 customKeys.forEach(k => {
+                    const pl = playlistsData[k];
                     const opt = document.createElement('option');
                     opt.value = k;
-                    opt.textContent = `★ ${playlistsData[k].name} (${playlistsData[k].songs.length})`;
+                    const icon = pl.source === 'spotify' ? '🟢' : '★';
+                    opt.textContent = `${icon} ${pl.name} (${pl.songs.length})`;
                     customGroup.appendChild(opt);
                 });
                 playlistSelect.appendChild(customGroup);
@@ -1324,11 +1448,14 @@
 
             keys.forEach(key => {
                 const pl = customSaved[key];
+                const badge = pl.source === 'spotify'
+                    ? '<span class="playlist-badge spotify-badge">Spotify</span>'
+                    : '<span class="playlist-badge yt-badge">YouTube</span>';
                 const row = document.createElement('div');
                 row.className = 'saved-playlist-row';
                 row.innerHTML = `
                     <div class="saved-playlist-info">
-                        <span class="saved-playlist-name">${escapeHtml(pl.name)}</span>
+                        <span class="saved-playlist-name">${badge} ${escapeHtml(pl.name)}</span>
                         <span class="saved-playlist-count">${pl.songs ? pl.songs.length : 0} songs</span>
                     </div>
                     <div class="saved-playlist-actions">
@@ -1393,36 +1520,65 @@
             const customName = customPlaylistNameInput.value.trim();
 
             if (!rawInput) {
-                modalErrorText.textContent = 'Please enter a YouTube playlist link or ID.';
+                modalErrorText.textContent = 'Please enter a YouTube or Spotify playlist link.';
                 modalErrorText.classList.remove('hidden');
                 return;
             }
 
-            const playlistId = extractPlaylistId(rawInput);
-            if (!playlistId || playlistId.length < 5) {
-                modalErrorText.textContent = 'Invalid YouTube playlist link or ID.';
-                modalErrorText.classList.remove('hidden');
-                return;
+            const isSpotify = isSpotifyUrl(rawInput);
+            let playlistId = '';
+
+            if (isSpotify) {
+                playlistId = extractSpotifyPlaylistId(rawInput);
+                if (!playlistId || playlistId.length < 5) {
+                    modalErrorText.textContent = 'Invalid Spotify playlist link or ID.';
+                    modalErrorText.classList.remove('hidden');
+                    return;
+                }
+            } else {
+                playlistId = extractPlaylistId(rawInput);
+                if (!playlistId || playlistId.length < 5) {
+                    modalErrorText.textContent = 'Invalid YouTube playlist link or ID.';
+                    modalErrorText.classList.remove('hidden');
+                    return;
+                }
             }
 
             fetchStatusContainer.classList.remove('hidden');
-            fetchStatusText.textContent = 'Connecting to YouTube API...';
+            fetchStatusText.textContent = isSpotify ? 'Connecting to Spotify...' : 'Connecting to YouTube API...';
             submitCustomPlaylistBtn.disabled = true;
             submitCustomPlaylistBtn.textContent = 'Loading...';
 
             try {
-                const result = await fetchYouTubePlaylistFromBrowser(playlistId, customName, (progress) => {
-                    fetchStatusText.textContent = progress;
-                });
-
-                const key = `custom_${playlistId}`;
-                playlistsData[key] = {
-                    id: playlistId,
-                    name: result.name,
-                    songs: result.songs,
-                    isCustom: true,
-                    playlistId: playlistId
-                };
+                let result;
+                let key;
+                if (isSpotify) {
+                    result = await fetchSpotifyPlaylist(rawInput, customName, (progress) => {
+                        fetchStatusText.textContent = progress;
+                    });
+                    key = `custom_spotify_${playlistId}`;
+                    playlistsData[key] = {
+                        id: playlistId,
+                        name: result.name,
+                        songs: result.songs,
+                        isCustom: true,
+                        source: 'spotify',
+                        playlistId: playlistId
+                    };
+                } else {
+                    result = await fetchYouTubePlaylistFromBrowser(playlistId, customName, (progress) => {
+                        fetchStatusText.textContent = progress;
+                    });
+                    key = `custom_${playlistId}`;
+                    playlistsData[key] = {
+                        id: playlistId,
+                        name: result.name,
+                        songs: result.songs,
+                        isCustom: true,
+                        source: 'youtube',
+                        playlistId: playlistId
+                    };
+                }
 
                 saveCustomPlaylistToStorage(key, playlistsData[key]);
                 populatePlaylistSelect();
@@ -1446,7 +1602,11 @@
 
             let shareUrl = `${window.location.origin}${window.location.pathname}`;
             if (current.isCustom && current.playlistId) {
-                shareUrl += `?playlist=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
+                if (current.source === 'spotify') {
+                    shareUrl += `?spotify=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
+                } else {
+                    shareUrl += `?playlist=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
+                }
             } else {
                 shareUrl += `?playlist=${encodeURIComponent(activePlaylistKey)}`;
             }
@@ -1464,10 +1624,68 @@
 
         async function checkUrlForSharedPlaylist() {
             const params = new URLSearchParams(window.location.search);
+            const spotifyParam = params.get('spotify');
             const playlistParam = params.get('playlist') || params.get('custom');
             const nameParam = params.get('name') || '';
 
-            if (playlistParam) {
+            if (spotifyParam) {
+                const cleanId = extractSpotifyPlaylistId(spotifyParam);
+                const customKey = `custom_spotify_${cleanId}`;
+
+                if (playlistsData[customKey]) {
+                    switchToPlaylist(customKey);
+                    return;
+                }
+
+                showToast(`Loading shared Spotify playlist (${nameParam || cleanId})...`);
+                try {
+                    const result = await fetchSpotifyPlaylist(cleanId, nameParam);
+                    playlistsData[customKey] = {
+                        id: cleanId,
+                        name: result.name,
+                        songs: result.songs,
+                        isCustom: true,
+                        source: 'spotify',
+                        playlistId: cleanId
+                    };
+                    saveCustomPlaylistToStorage(customKey, playlistsData[customKey]);
+                    populatePlaylistSelect();
+                    switchToPlaylist(customKey);
+                    showToast(`Loaded "${result.name}" with ${result.songs.length} songs!`);
+                    return;
+                } catch (err) {
+                    console.error('Failed to load shared Spotify playlist from URL:', err);
+                    showToast(`Could not load shared playlist: ${err.message}`);
+                }
+            } else if (playlistParam) {
+                if (isSpotifyUrl(playlistParam)) {
+                    const cleanId = extractSpotifyPlaylistId(playlistParam);
+                    const customKey = `custom_spotify_${cleanId}`;
+                    if (playlistsData[customKey]) {
+                        switchToPlaylist(customKey);
+                        return;
+                    }
+                    showToast(`Loading Spotify playlist...`);
+                    try {
+                        const result = await fetchSpotifyPlaylist(cleanId, nameParam);
+                        playlistsData[customKey] = {
+                            id: cleanId,
+                            name: result.name,
+                            songs: result.songs,
+                            isCustom: true,
+                            source: 'spotify',
+                            playlistId: cleanId
+                        };
+                        saveCustomPlaylistToStorage(customKey, playlistsData[customKey]);
+                        populatePlaylistSelect();
+                        switchToPlaylist(customKey);
+                        showToast(`Loaded "${result.name}" with ${result.songs.length} songs!`);
+                        return;
+                    } catch (err) {
+                        console.error('Failed to load shared Spotify playlist:', err);
+                    }
+                }
+
                 const cleanId = extractPlaylistId(playlistParam);
                 const customKey = `custom_${cleanId}`;
 
@@ -1487,6 +1705,7 @@
                         name: result.name,
                         songs: result.songs,
                         isCustom: true,
+                        source: 'youtube',
                         playlistId: cleanId
                     };
                     saveCustomPlaylistToStorage(customKey, playlistsData[customKey]);
@@ -1552,10 +1771,43 @@
                 document.getElementById('songSource').textContent = `Playlist: ${playlistsData[activePlaylistKey].name}`;
             }
 
-            initDailyGame();
+            await initDailyGame();
         }
 
-        function initDailyGame() {
+        async function prepareCurrentSong() {
+            if (!currentSong) return;
+
+            if (!currentSong.id) {
+                instructionText.textContent = `Matching audio for "${currentSong.title}"...`;
+                playButton.disabled = true;
+                try {
+                    await resolveSongAudio(currentSong);
+                    playButton.disabled = false;
+                    instructionText.textContent = "Ready! Turn up the volume and tap to start.";
+                } catch (err) {
+                    console.warn('Could not match audio for song:', currentSong, err);
+                    playButton.disabled = false;
+                    instructionText.textContent = `⚠️ Could not match audio. Skipping to next song...`;
+                    setTimeout(() => {
+                        resetGame(false);
+                    }, 1200);
+                    return;
+                }
+            }
+
+            if (player && player.cueVideoById) {
+                try {
+                    player.cueVideoById(currentSong.id);
+                    instructionText.textContent = "Ready! Turn up the volume and tap to start.";
+                } catch (e) {
+                    initYouTubePlayer();
+                }
+            } else {
+                initYouTubePlayer();
+            }
+        }
+
+        async function initDailyGame() {
             if (!songs || songs.length === 0) {
                 console.warn('No songs available in active playlist');
                 instructionText.textContent = "No songs found in this playlist.";
@@ -1568,8 +1820,7 @@
 
             console.log('Selected Song:', currentSong.title, 'ID:', currentSong.id); // Debug
 
-            // Initialize Player
-            initYouTubePlayer();
+            await prepareCurrentSong();
         }
 
         function initYouTubePlayer() {
@@ -1911,7 +2162,7 @@
 
             let isCorrect = false;
 
-            if (selectedSongGuess && selectedSongGuess.id === currentSong.id) {
+            if (selectedSongGuess && ((selectedSongGuess.id && currentSong.id && selectedSongGuess.id === currentSong.id) || (selectedSongGuess.title === currentSong.title && selectedSongGuess.artist === currentSong.artist))) {
                 isCorrect = true;
             } else {
                 const normGuess = normalizeStr(rawGuess);
@@ -2042,7 +2293,7 @@
             playAgainBtn.onclick = () => resetGame(false);
         }
 
-        function resetGame(newPlaylistSelected = false) {
+        async function resetGame(newPlaylistSelected = false) {
             // Stop playback
             if (playbackTimer) {
                 clearTimeout(playbackTimer);
@@ -2098,16 +2349,7 @@
             currentSong = songs[songIndex];
             console.log('Selected Song:', currentSong.title); // Debug
 
-            // If player is already loaded, cue the new video
-            if (player && player.cueVideoById) {
-                try {
-                    player.cueVideoById(currentSong.id);
-                } catch (e) {
-                    initYouTubePlayer();
-                }
-            } else {
-                initYouTubePlayer();
-            }
+            await prepareCurrentSong();
         }
 
         function setupEventListeners() {
