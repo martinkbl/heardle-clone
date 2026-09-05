@@ -50,40 +50,40 @@ function scoreCandidate(item, artist, title) {
         score += 100;
     }
 
-    // 2. Official Audio tag (+60)
+    // 2. Official Audio tag (+80)
     if (rawTitle.includes('official audio') || rawTitle.includes('(audio)') || rawTitle.includes('[audio]') || rawTitle.includes('audio officiel')) {
-        score += 60;
+        score += 80;
     }
 
-    // 3. Lyrics video (+30) - Almost always uses the studio master track
+    // 3. Lyrics video (+40) - Almost always uses the studio master track
     if (rawTitle.includes('lyrics') || rawTitle.includes('paroles') || rawTitle.includes('lyric video')) {
-        score += 30;
+        score += 40;
     }
 
     // 4. Exact / Close Title Matching (+40)
-    if (targetTitle && (rawTitle === targetTitle || rawTitle.startsWith(targetTitle))) {
+    if (targetTitle && (rawTitle === targetTitle || rawTitle.startsWith(targetTitle) || rawTitle.includes(targetTitle))) {
         score += 40;
     }
     if (targetArtist && (channel.includes(targetArtist) || rawTitle.includes(targetArtist))) {
         score += 20;
     }
 
-    // 5. Heavy penalties for Music Videos / Clips with intros & dialogue (-100)
+    // 5. Heavy penalties for Music Videos / Clips with intros & dialogue (-150)
     if (rawTitle.includes('official video') || rawTitle.includes('official music video') || rawTitle.includes('clip officiel') || rawTitle.includes('music video') || rawTitle.includes('vidéo officielle')) {
+        score -= 150;
+    }
+    if (channel.includes('vevo') && !rawTitle.includes('audio')) {
         score -= 100;
     }
-    if (channel.includes('vevo')) {
-        score -= 70;
-    }
     if (rawTitle.includes('short film') || rawTitle.includes('teaser') || rawTitle.includes('trailer') || rawTitle.includes('behind the scenes') || rawTitle.includes('making of')) {
-        score -= 200;
+        score -= 250;
     }
 
-    // 6. Live / Concert / Acoustic / Remix / Cover penalties unless part of original title (-80)
+    // 6. Live / Concert / Acoustic / Remix / Cover heavy penalties (-200) unless part of original title
     const noiseWords = ['live', 'concert', 'en concert', 'en direct', 'acoustic', 'acoustique', 'cover', 'reprise', 'remix', 'instrumental', 'karaoke'];
     for (const word of noiseWords) {
         if (rawTitle.includes(word) && !targetTitle.includes(word)) {
-            score -= 80;
+            score -= 200;
         }
     }
 
