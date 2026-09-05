@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const spotifyHandler = require('./api/spotify');
+const deezerHandler = require('./api/deezer');
 const matchHandler = require('./api/match');
 
 const PORT = process.env.PORT || 3000;
@@ -33,6 +34,21 @@ const server = http.createServer(async (req, res) => {
             };
         };
         return spotifyHandler(req, res);
+    }
+
+    if (parsedUrl.pathname === '/api/deezer') {
+        req.query = parsedUrl.query;
+        res.status = (code) => {
+            res.statusCode = code;
+            return {
+                json: (data) => {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+                    res.end(JSON.stringify(data));
+                },
+                end: () => res.end()
+            };
+        };
+        return deezerHandler(req, res);
     }
 
     if (parsedUrl.pathname === '/api/match') {

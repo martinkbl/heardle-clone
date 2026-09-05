@@ -826,6 +826,12 @@
             border: 1px solid rgba(29, 185, 84, 0.4);
         }
 
+        .deezer-badge {
+            background: rgba(162, 56, 255, 0.2);
+            color: #c084fc;
+            border: 1px solid rgba(162, 56, 255, 0.4);
+        }
+
         .yt-badge {
             background: rgba(239, 68, 68, 0.2);
             color: #ef4444;
@@ -999,12 +1005,12 @@
             
             <div class="modal-body">
                 <p class="modal-description">
-                    Paste any public <strong>YouTube</strong> or <strong>Spotify</strong> playlist link to load its songs and play Heardle with your music!
+                    Paste any public <strong>YouTube</strong>, <strong>Spotify</strong> or <strong>Deezer</strong> playlist link to load its songs and play Heardle with your music!
                 </p>
 
                 <div class="modal-form-group">
-                    <label for="customPlaylistUrlInput">YouTube or Spotify Playlist Link</label>
-                    <input type="text" id="customPlaylistUrlInput" placeholder="https://open.spotify.com/playlist/... or https://www.youtube.com/playlist?list=..." autocomplete="off">
+                    <label for="customPlaylistUrlInput">YouTube, Spotify or Deezer Playlist Link</label>
+                    <input type="text" id="customPlaylistUrlInput" placeholder="https://open.spotify.com/playlist/... or https://www.deezer.com/playlist/... or YouTube link" autocomplete="off">
                 </div>
 
                 <div class="modal-form-group">
@@ -1154,6 +1160,12 @@
             return str.includes('spotify.com') || str.startsWith('spotify:');
         }
 
+        function isDeezerUrl(rawInput) {
+            if (!rawInput) return false;
+            const str = rawInput.trim().toLowerCase();
+            return str.includes('deezer.com') || str.includes('deezer.page.link') || str.includes('dzr.page.link');
+        }
+
         function extractSpotifyPlaylistId(rawInput) {
             if (!rawInput) return '';
             let val = rawInput.trim();
@@ -1161,6 +1173,19 @@
                 val = val.split('/playlist/')[1];
             } else if (val.includes('spotify:playlist:')) {
                 val = val.split('spotify:playlist:')[1];
+            }
+            if (val.includes('?')) val = val.split('?')[0];
+            if (val.includes('&')) val = val.split('&')[0];
+            if (val.includes('/')) val = val.split('/')[0];
+            if (val.includes('#')) val = val.split('#')[0];
+            return val.trim();
+        }
+
+        function extractDeezerPlaylistId(rawInput) {
+            if (!rawInput) return '';
+            let val = rawInput.trim();
+            if (val.includes('/playlist/')) {
+                val = val.split('/playlist/')[1];
             }
             if (val.includes('?')) val = val.split('?')[0];
             if (val.includes('&')) val = val.split('&')[0];
@@ -1233,6 +1258,26 @@
                 id: data.id,
                 name: customName ? customName.trim() : (data.name || 'Spotify Playlist'),
                 source: 'spotify',
+                songs: data.songs
+            };
+        }
+
+        async function fetchDeezerPlaylist(urlOrId, customName = '', onProgress = null) {
+            if (onProgress) onProgress('Fetching Deezer playlist...');
+            const endpoint = `/api/deezer?url=${encodeURIComponent(urlOrId)}`;
+            const res = await fetch(endpoint);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error(errData.error || `HTTP ${res.status}: Failed to load Deezer playlist`);
+            }
+            const data = await res.json();
+            if (!data.songs || data.songs.length === 0) {
+                throw new Error('No playable songs found in this Deezer playlist.');
+            }
+            return {
+                id: data.id,
+                name: customName ? customName.trim() : (data.name || 'Deezer Playlist'),
+                source: 'deezer',
                 songs: data.songs
             };
         }
@@ -1412,7 +1457,9 @@
                     const pl = playlistsData[k];
                     const opt = document.createElement('option');
                     opt.value = k;
-                    const icon = pl.source === 'spotify' ? '🟢' : '★';
+                    let icon = '★';
+                    if (pl.source === 'spotify') icon = '🟢';
+                    else if (pl.source === 'deezer') icon = '🟣';
                     opt.textContent = `${icon} ${pl.name} (${pl.songs.length})`;
                     customGroup.appendChild(opt);
                 });
@@ -1448,9 +1495,12 @@
 
             keys.forEach(key => {
                 const pl = customSaved[key];
-                const badge = pl.source === 'spotify'
-                    ? '<span class="playlist-badge spotify-badge">Spotify</span>'
-                    : '<span class="playlist-badge yt-badge">YouTube</span>';
+                let badge = '<span class="playlist-badge yt-badge">YouTube</span>';
+                if (pl.source === 'spotify') {
+                    badge = '<span class="playlist-badge spotify-badge">Spotify</span>';
+                } else if (pl.source === 'deezer') {
+                    badge = '<span class="playlist-badge deezer-badge">Deezer</span>';
+                }
                 const row = document.createElement('div');
                 row.className = 'saved-playlist-row';
                 row.innerHTML = `
@@ -1520,18 +1570,26 @@
             const customName = customPlaylistNameInput.value.trim();
 
             if (!rawInput) {
-                modalErrorText.textContent = 'Please enter a YouTube or Spotify playlist link.';
+                modalErrorText.textContent = 'Please enter a YouTube, Spotify, or Deezer playlist link.';
                 modalErrorText.classList.remove('hidden');
                 return;
             }
 
             const isSpotify = isSpotifyUrl(rawInput);
+            const isDeezer = isDeezerUrl(rawInput);
             let playlistId = '';
 
             if (isSpotify) {
                 playlistId = extractSpotifyPlaylistId(rawInput);
                 if (!playlistId || playlistId.length < 5) {
                     modalErrorText.textContent = 'Invalid Spotify playlist link or ID.';
+                    modalErrorText.classList.remove('hidden');
+                    return;
+                }
+            } else if (isDeezer) {
+                playlistId = extractDeezerPlaylistId(rawInput);
+                if (!playlistId && !rawInput.includes('deezer.page.link') && !rawInput.includes('dzr.page.link')) {
+                    modalErrorText.textContent = 'Invalid Deezer playlist link or ID.';
                     modalErrorText.classList.remove('hidden');
                     return;
                 }
@@ -1545,7 +1603,7 @@
             }
 
             fetchStatusContainer.classList.remove('hidden');
-            fetchStatusText.textContent = isSpotify ? 'Connecting to Spotify...' : 'Connecting to YouTube API...';
+            fetchStatusText.textContent = isSpotify ? 'Connecting to Spotify...' : (isDeezer ? 'Connecting to Deezer...' : 'Connecting to YouTube API...');
             submitCustomPlaylistBtn.disabled = true;
             submitCustomPlaylistBtn.textContent = 'Loading...';
 
@@ -1556,14 +1614,27 @@
                     result = await fetchSpotifyPlaylist(rawInput, customName, (progress) => {
                         fetchStatusText.textContent = progress;
                     });
-                    key = `custom_spotify_${playlistId}`;
+                    key = `custom_spotify_${result.id}`;
                     playlistsData[key] = {
-                        id: playlistId,
+                        id: result.id,
                         name: result.name,
                         songs: result.songs,
                         isCustom: true,
                         source: 'spotify',
-                        playlistId: playlistId
+                        playlistId: result.id
+                    };
+                } else if (isDeezer) {
+                    result = await fetchDeezerPlaylist(rawInput, customName, (progress) => {
+                        fetchStatusText.textContent = progress;
+                    });
+                    key = `custom_deezer_${result.id}`;
+                    playlistsData[key] = {
+                        id: result.id,
+                        name: result.name,
+                        songs: result.songs,
+                        isCustom: true,
+                        source: 'deezer',
+                        playlistId: result.id
                     };
                 } else {
                     result = await fetchYouTubePlaylistFromBrowser(playlistId, customName, (progress) => {
@@ -1604,6 +1675,8 @@
             if (current.isCustom && current.playlistId) {
                 if (current.source === 'spotify') {
                     shareUrl += `?spotify=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
+                } else if (current.source === 'deezer') {
+                    shareUrl += `?deezer=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
                 } else {
                     shareUrl += `?playlist=${encodeURIComponent(current.playlistId)}&name=${encodeURIComponent(current.name)}`;
                 }
@@ -1625,6 +1698,7 @@
         async function checkUrlForSharedPlaylist() {
             const params = new URLSearchParams(window.location.search);
             const spotifyParam = params.get('spotify');
+            const deezerParam = params.get('deezer');
             const playlistParam = params.get('playlist') || params.get('custom');
             const nameParam = params.get('name') || '';
 
@@ -1657,6 +1731,35 @@
                     console.error('Failed to load shared Spotify playlist from URL:', err);
                     showToast(`Could not load shared playlist: ${err.message}`);
                 }
+            } else if (deezerParam) {
+                const cleanId = extractDeezerPlaylistId(deezerParam);
+                const customKey = `custom_deezer_${cleanId}`;
+
+                if (playlistsData[customKey]) {
+                    switchToPlaylist(customKey);
+                    return;
+                }
+
+                showToast(`Loading shared Deezer playlist (${nameParam || cleanId})...`);
+                try {
+                    const result = await fetchDeezerPlaylist(cleanId, nameParam);
+                    playlistsData[customKey] = {
+                        id: cleanId,
+                        name: result.name,
+                        songs: result.songs,
+                        isCustom: true,
+                        source: 'deezer',
+                        playlistId: cleanId
+                    };
+                    saveCustomPlaylistToStorage(customKey, playlistsData[customKey]);
+                    populatePlaylistSelect();
+                    switchToPlaylist(customKey);
+                    showToast(`Loaded "${result.name}" with ${result.songs.length} songs!`);
+                    return;
+                } catch (err) {
+                    console.error('Failed to load shared Deezer playlist from URL:', err);
+                    showToast(`Could not load shared playlist: ${err.message}`);
+                }
             } else if (playlistParam) {
                 if (isSpotifyUrl(playlistParam)) {
                     const cleanId = extractSpotifyPlaylistId(playlistParam);
@@ -1683,6 +1786,32 @@
                         return;
                     } catch (err) {
                         console.error('Failed to load shared Spotify playlist:', err);
+                    }
+                } else if (isDeezerUrl(playlistParam)) {
+                    const cleanId = extractDeezerPlaylistId(playlistParam);
+                    const customKey = `custom_deezer_${cleanId}`;
+                    if (playlistsData[customKey]) {
+                        switchToPlaylist(customKey);
+                        return;
+                    }
+                    showToast(`Loading Deezer playlist...`);
+                    try {
+                        const result = await fetchDeezerPlaylist(cleanId, nameParam);
+                        playlistsData[customKey] = {
+                            id: cleanId,
+                            name: result.name,
+                            songs: result.songs,
+                            isCustom: true,
+                            source: 'deezer',
+                            playlistId: cleanId
+                        };
+                        saveCustomPlaylistToStorage(customKey, playlistsData[customKey]);
+                        populatePlaylistSelect();
+                        switchToPlaylist(customKey);
+                        showToast(`Loaded "${result.name}" with ${result.songs.length} songs!`);
+                        return;
+                    } catch (err) {
+                        console.error('Failed to load shared Deezer playlist:', err);
                     }
                 }
 
