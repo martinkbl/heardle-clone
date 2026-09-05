@@ -1,10 +1,13 @@
 const https = require('https');
 
+// Global in-memory match cache to avoid redundant network calls
+const matchCache = new Map();
+
 function fetchHttp(url, options = {}) {
     return new Promise((resolve, reject) => {
         const req = https.get(url, {
             headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
                 'Referer': 'https://heardle-clone-delta.vercel.app/',
                 ...options.headers
             }
@@ -90,13 +93,84 @@ function scoreCandidate(item, artist, title) {
     return score;
 }
 
-async function searchYouTubeCandidates(query, apiKey) {
+// 0-Quota Public Web Search Scraper
+function searchYouTubeNoQuotaScrape(query) {
+    return new Promise((resolve) => {
+        const url = 'https://www.youtube.com/results?search_query=' + encodeURIComponent(query);
+        const req = https.get(url, {
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept-Language': 'en-US,en;q=0.9',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+        }, (res) => {
+            let html = '';
+            res.on('data', chunk => html += chunk);
+            res.on('end', () => {
+                try {
+                    const idx = html.indexOf('ytInitialData = ');
+                    if (idx !== -1) {
+                        const start = idx + 'ytInitialData = '.length;
+                        const end = html.indexOf(';</script>', start);
+                        if (end !== -1) {
+                            const jsonStr = html.substring(start, end);
+                            const data = JSON.parse(jsonStr);
+                            const contents = data.contents?.twoColumnSearchResultsRenderer?.primaryContents?.sectionListRenderer?.contents || [];
+                            const videos = [];
+                            
+                            for (const section of contents) {
+                                const items = section.itemSectionRenderer?.contents || [];
+                                for (const item of items) {
+                                    const v = item.videoRenderer;
+                                    if (v && v.videoId) {
+                                        const title = v.title?.runs?.map(r => r.text).join('') || '';
+                                        const channel = v.ownerText?.runs?.map(r => r.text).join('') || '';
+                                        const desc = v.detailedMetadataSnippets?.[0]?.snippetText?.runs?.map(r => r.text).join('') || '';
+                                        videos.push({
+                                            videoId: v.videoId,
+                                            snippet: {
+                                                title: title,
+                                                channelTitle: channel,
+                                                description: desc
+                                            }
+                                        });
+                                    }
+                                }
+                            }
+                            if (videos.length > 0) return resolve(videos);
+                        }
+                    }
+
+                    // Fallback regex matching
+                    const videoIds = [...html.matchAll(/\/watch\?v=([a-zA-Z0-9_-]{11})/g)].map(m => m[1]);
+                    const unique = [...new Set(videoIds)].slice(0, 10);
+                    resolve(unique.map(id => ({ videoId: id, snippet: { title: '', channelTitle: '', description: '' } })));
+                } catch (e) {
+                    console.warn('Scrape parse fallback:', e.message);
+                    resolve([]);
+                }
+            });
+        });
+
+        req.on('error', () => resolve([]));
+        req.setTimeout(6000, () => {
+            req.destroy();
+            resolve([]);
+        });
+    });
+}
+
+// Fallback: Official YouTube Data API (only if scrape yields 0 results)
+async function searchYouTubeViaOfficialAPI(query, apiKey) {
     try {
         const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=10&key=${encodeURIComponent(apiKey)}`;
         const data = await fetchHttp(searchUrl);
-        return (data && Array.isArray(data.items)) ? data.items : [];
+        return (data && Array.isArray(data.items)) ? data.items.map(it => ({
+            videoId: it.id?.videoId,
+            snippet: it.snippet || {}
+        })) : [];
     } catch (e) {
-        console.warn('YouTube search attempt failed:', query, e.message);
+        console.warn('Official YouTube API search attempt failed:', query, e.message);
         return [];
     }
 }
@@ -111,28 +185,51 @@ module.exports = async (req, res) => {
     }
 
     const { q, query: queryParam, artist = '', title = '' } = req.query;
-    const rawQuery = q || queryParam || `${artist} ${title}`.trim();
+    const cleanArtist = artist.trim();
+    const cleanTitle = title.trim();
+    const rawQuery = q || queryParam || `${cleanArtist} ${cleanTitle}`.trim();
 
     if (!rawQuery) {
         return res.status(400).json({ error: 'Missing query parameters (q, artist, or title).' });
     }
 
-    const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyDA4eTxUyaC8s8rHlOp4AjKNqjycDljte4';
+    // Check In-Memory Cache (0 network, <1ms)
+    const cacheKey = `${cleanArtist.toLowerCase()}|||${cleanTitle.toLowerCase()}|||${rawQuery.toLowerCase()}`;
+    if (matchCache.has(cacheKey)) {
+        const cached = matchCache.get(cacheKey);
+        return res.status(200).json({
+            ...cached,
+            cached: true,
+            source: 'cache'
+        });
+    }
 
     try {
-        // Build prioritized search queries: Topic first, then Audio
-        const cleanArtist = artist.trim();
-        const cleanTitle = title.trim();
         const baseTerms = (cleanArtist && cleanTitle) ? `${cleanArtist} ${cleanTitle}` : rawQuery.replace(/audio/gi, '').trim();
 
-        let candidates = await searchYouTubeCandidates(`${baseTerms} Topic`, apiKey);
+        // 1. Try 0-Quota Public Web Search Scraper (Primary)
+        let candidates = await searchYouTubeNoQuotaScrape(`${baseTerms} Topic`);
+        let sourceUsed = 'no_quota_scrape';
 
-        // If no items returned or all penalized, fallback search
         if (candidates.length === 0) {
-            candidates = await searchYouTubeCandidates(`${baseTerms} Official Audio`, apiKey);
+            candidates = await searchYouTubeNoQuotaScrape(`${baseTerms} Official Audio`);
         }
         if (candidates.length === 0) {
-            candidates = await searchYouTubeCandidates(rawQuery, apiKey);
+            candidates = await searchYouTubeNoQuotaScrape(rawQuery);
+        }
+
+        // 2. If scraping failed (e.g. rate limit/network), fallback to Official API (Backup)
+        if (candidates.length === 0) {
+            const apiKey = process.env.YOUTUBE_API_KEY || 'AIzaSyDA4eTxUyaC8s8rHlOp4AjKNqjycDljte4';
+            candidates = await searchYouTubeViaOfficialAPI(`${baseTerms} Topic`, apiKey);
+            sourceUsed = 'official_api_fallback';
+
+            if (candidates.length === 0) {
+                candidates = await searchYouTubeViaOfficialAPI(`${baseTerms} Official Audio`, apiKey);
+            }
+            if (candidates.length === 0) {
+                candidates = await searchYouTubeViaOfficialAPI(rawQuery, apiKey);
+            }
         }
 
         if (candidates.length === 0) {
@@ -141,9 +238,9 @@ module.exports = async (req, res) => {
 
         // Rank candidates by audio fidelity score
         const scored = candidates
-            .filter(item => item.id && item.id.videoId)
+            .filter(item => item.videoId)
             .map(item => ({
-                videoId: item.id.videoId,
+                videoId: item.videoId,
                 title: item.snippet?.title || '',
                 channel: item.snippet?.channelTitle || '',
                 score: scoreCandidate(item, cleanArtist, cleanTitle)
@@ -155,13 +252,19 @@ module.exports = async (req, res) => {
         }
 
         const best = scored[0];
-        return res.status(200).json({
+        const result = {
             success: true,
             videoId: best.videoId,
             title: best.title,
             channel: best.channel,
-            score: best.score
-        });
+            score: best.score,
+            source: sourceUsed
+        };
+
+        // Cache result
+        matchCache.set(cacheKey, result);
+
+        return res.status(200).json(result);
 
     } catch (err) {
         console.error('Match audio error:', err);
