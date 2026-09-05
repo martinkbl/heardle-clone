@@ -40,39 +40,65 @@ function fetchHttp(url, options = {}) {
     });
 }
 
-async function extractDeezerPlaylistId(input) {
+async function extractDeezerPlaylistId(input, maxRedirects = 8) {
     if (!input) return '';
-    let val = input.trim();
+    let currentUrl = input.trim();
 
-    // If it's a shortlink, resolve redirect to get real URL
-    if (val.includes('deezer.page.link') || val.includes('dzr.page.link')) {
+    // Direct numeric ID
+    if (/^\d+$/.test(currentUrl)) {
+        return currentUrl;
+    }
+
+    // Check if playlist ID is directly in the URL or query params
+    const matchDirect = decodeURIComponent(currentUrl).match(/\/playlist\/(\d+)/) || decodeURIComponent(currentUrl).match(/playlist-(\d+)/);
+    if (matchDirect) {
+        return matchDirect[1];
+    }
+
+    // Follow redirects for shortlinks / link.deezer.com / deezer.page.link
+    for (let i = 0; i < maxRedirects; i++) {
+        const match = decodeURIComponent(currentUrl).match(/\/playlist\/(\d+)/) || decodeURIComponent(currentUrl).match(/playlist-(\d+)/);
+        if (match) {
+            return match[1];
+        }
+
         try {
-            const resolved = await new Promise((resolve) => {
-                const req = https.get(val, { headers: { 'User-Agent': 'Mozilla/5.0' } }, (res) => {
-                    if (res.headers.location) {
+            const nextUrl = await new Promise((resolve, reject) => {
+                const client = currentUrl.startsWith('https') ? https : http;
+                const req = client.get(currentUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+                    }
+                }, (res) => {
+                    if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
                         resolve(res.headers.location);
                     } else {
-                        resolve(val);
+                        let body = '';
+                        res.on('data', c => body += c);
+                        res.on('end', () => {
+                            const bodyMatch = body.match(/\/playlist\/(\d+)/) || body.match(/playlist-(\d+)/) || body.match(/deezer:\/\/www\.deezer\.com\/playlist\/(\d+)/);
+                            if (bodyMatch) {
+                                resolve('https://www.deezer.com/playlist/' + bodyMatch[1]);
+                            } else {
+                                resolve(null);
+                            }
+                        });
                     }
                 });
-                req.on('error', () => resolve(val));
-                req.setTimeout(5000, () => { req.destroy(); resolve(val); });
+                req.on('error', reject);
+                req.setTimeout(6000, () => { req.destroy(); resolve(null); });
             });
-            val = resolved;
+
+            if (!nextUrl) break;
+            currentUrl = nextUrl.startsWith('http') ? nextUrl : new URL(nextUrl, currentUrl).href;
         } catch (e) {
-            console.warn('Error resolving shortlink:', e);
+            console.warn('Deezer redirect resolution error:', e.message);
+            break;
         }
     }
 
-    if (val.includes('/playlist/')) {
-        val = val.split('/playlist/')[1];
-    }
-    if (val.includes('?')) val = val.split('?')[0];
-    if (val.includes('&')) val = val.split('&')[0];
-    if (val.includes('/')) val = val.split('/')[0];
-    if (val.includes('#')) val = val.split('#')[0];
-
-    return val.trim();
+    const finalMatch = decodeURIComponent(currentUrl).match(/\/playlist\/(\d+)/) || decodeURIComponent(currentUrl).match(/playlist-(\d+)/);
+    return finalMatch ? finalMatch[1] : '';
 }
 
 function cleanSongTitle(title) {
@@ -97,8 +123,8 @@ module.exports = async (req, res) => {
         return res.status(200).end();
     }
 
-    const { url, id } = req.query;
-    const rawInput = url || id;
+    const { url, id, playlistId: queryPlaylistId } = req.query;
+    const rawInput = url || id || queryPlaylistId;
     const playlistId = await extractDeezerPlaylistId(rawInput);
 
     if (!playlistId || !/^\d+$/.test(playlistId)) {

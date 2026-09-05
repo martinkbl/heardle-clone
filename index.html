@@ -1587,12 +1587,7 @@
                     return;
                 }
             } else if (isDeezer) {
-                playlistId = extractDeezerPlaylistId(rawInput);
-                if (!playlistId && !rawInput.includes('deezer.page.link') && !rawInput.includes('dzr.page.link')) {
-                    modalErrorText.textContent = 'Invalid Deezer playlist link or ID.';
-                    modalErrorText.classList.remove('hidden');
-                    return;
-                }
+                // Serverless /api/deezer route handles URL redirect resolution for link.deezer.com, deezer.page.link, and standard links
             } else {
                 playlistId = extractPlaylistId(rawInput);
                 if (!playlistId || playlistId.length < 5) {
