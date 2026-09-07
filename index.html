@@ -2048,14 +2048,14 @@
 
             // 2. If neither preview nor YouTube ID is available, match audio via /api/match
             if (!currentSong.id && !currentSong.audioPreviewUrl) {
-                instructionText.textContent = `Matching audio for "${currentSong.title}"...`;
+                instructionText.textContent = "Loading audio track...";
                 playButton.disabled = true;
                 try {
                     await resolveSongAudio(currentSong);
                 } catch (err) {
                     console.warn('Could not match audio for song:', currentSong, err);
                     playButton.disabled = false;
-                    instructionText.textContent = `⚠️ Could not match audio. Skipping to next song...`;
+                    instructionText.textContent = "⚠️ Audio unavailable. Loading another track...";
                     setTimeout(() => {
                         resetGame(false);
                     }, 1200);
