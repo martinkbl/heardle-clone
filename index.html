@@ -34,76 +34,95 @@
         /* Header with title and icons */
         .game-header {
             width: 100%;
-            display: flex;
-            justify-content: space-between;
+            display: grid;
+            grid-template-columns: 1fr auto 1fr;
             align-items: center;
-            padding: 20px 40px;
-            border-bottom: 1px solid #333;
+            padding: 16px 36px;
+            border-bottom: 1px solid #282828;
+            background: #121212;
+            box-sizing: border-box;
         }
 
-        .header-left,
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            justify-self: start;
+        }
+
         .header-right {
             display: flex;
             align-items: center;
-            gap: 15px;
+            gap: 10px;
+            justify-self: end;
+            grid-column: 3;
         }
 
         .icon-button {
-            width: 40px;
-            height: 40px;
+            width: 36px;
+            height: 36px;
             background: none;
-            border: 2px solid #666;
+            border: 1.5px solid #555;
             border-radius: 50%;
             color: #fff;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            transition: border-color 0.2s;
+            font-size: 16px;
+            transition: all 0.2s;
         }
 
         .icon-button:hover {
-            border-color: #999;
+            border-color: #1db954;
+            color: #1db954;
         }
 
         .game-title {
-            font-size: 28px;
-            font-weight: 600;
+            font-size: 24px;
+            font-weight: 700;
             color: #fff;
             text-align: center;
+            letter-spacing: -0.5px;
+            margin: 0;
+            grid-column: 2;
+            justify-self: center;
+            white-space: nowrap;
         }
 
         /* Game content area */
         .game-content {
             flex: 1;
             width: 100%;
+            max-width: 500px;
+            margin: 0 auto;
             display: flex;
             flex-direction: column;
             align-items: center;
-            padding: 40px 20px 60px;
+            padding: 24px 16px 40px;
+            box-sizing: border-box;
         }
 
         /* Instruction text */
         .instruction-text {
             color: #888;
-            font-size: 16px;
-            margin-bottom: 30px;
+            font-size: 13.5px;
+            margin-bottom: 18px;
             text-align: center;
         }
 
         /* Audio player section */
         .audio-player {
             width: 100%;
-            margin-bottom: 40px;
+            margin-bottom: 20px;
         }
 
         .progress-container {
             width: 100%;
             height: 6px;
-            background: #333;
+            background: #282828;
             border-radius: 3px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
             position: relative;
         }
 
@@ -122,40 +141,46 @@
         .time-display {
             display: flex;
             justify-content: space-between;
-            font-size: 14px;
+            font-size: 13px;
             color: #888;
-            margin-bottom: 30px;
+            margin-bottom: 18px;
         }
 
         .play-button {
-            width: 80px;
-            height: 80px;
+            width: 64px;
+            height: 64px;
             background: none;
-            border: 3px solid #fff;
+            border: 2.5px solid #fff;
             border-radius: 50%;
             color: #fff;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 24px;
-            margin: 0 auto 40px;
+            font-size: 22px;
+            margin: 0 auto 16px;
             transition: all 0.2s;
         }
 
         .play-button:hover {
             background: rgba(255, 255, 255, 0.1);
+            transform: scale(1.06);
+        }
+
+        .play-button:active {
+            transform: scale(0.95);
         }
 
         .play-button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+            transform: none;
         }
 
         /* Search input */
         .search-container {
             width: 100%;
-            margin-bottom: 30px;
+            margin-bottom: 14px;
             position: relative;
         }
 
@@ -297,39 +322,98 @@
         /* Action buttons */
         .action-buttons {
             display: flex;
-            gap: 20px;
+            gap: 12px;
             width: 100%;
-            margin-bottom: 40px;
+            margin-bottom: 12px;
         }
 
         .action-button {
             flex: 1;
-            padding: 15px 25px;
-            background: #333;
-            border: none;
+            padding: 12px 18px;
+            background: #282828;
+            border: 1px solid #3c3c3c;
             border-radius: 8px;
             color: #fff;
-            font-size: 14px;
+            font-size: 13.5px;
             font-weight: 600;
             cursor: pointer;
-            transition: background 0.2s;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
         }
 
         .skip-button {
-            background: #444;
+            background: #2a2a2a;
+            border-color: #3e3e3e;
         }
 
         .submit-button {
             background: #1db954;
+            border-color: #1db954;
+            color: #000;
+            font-weight: 700;
         }
 
         .action-button:hover:not(:disabled) {
-            opacity: 0.8;
+            opacity: 0.9;
+            filter: brightness(1.1);
         }
 
         .action-button:disabled {
-            opacity: 0.5;
+            opacity: 0.4;
             cursor: not-allowed;
+        }
+
+        .shortcut-tag {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            border-radius: 4px;
+            padding: 1px 5px;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1.2;
+            color: #ccc;
+        }
+
+        .submit-button .shortcut-tag {
+            background: rgba(0, 0, 0, 0.15);
+            border-color: rgba(0, 0, 0, 0.25);
+            color: #111;
+        }
+
+        .shortcuts-legend {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 22px;
+            font-size: 12px;
+            color: #666;
+            user-select: none;
+        }
+
+        .shortcut-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .kbd-key {
+            background: #202020;
+            border: 1px solid #3c3c3c;
+            border-bottom: 2px solid #282828;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10.5px;
+            font-family: inherit;
+            font-weight: 600;
+            color: #aaa;
+            line-height: 1;
         }
 
         /* Answer boxes */
@@ -337,53 +421,60 @@
             width: 100%;
             display: flex;
             flex-direction: column;
-            gap: 12px;
-            margin-bottom: 40px;
+            gap: 6px;
+            margin-bottom: 22px;
         }
 
         .answer-box {
             width: 100%;
-            height: 50px;
-            background: transparent;
-            border: 2px solid #444;
-            border-radius: 8px;
+            height: 38px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1.5px solid #333333;
+            border-radius: 6px;
             display: flex;
             align-items: center;
-            padding: 0 20px;
+            padding: 0 14px;
             color: #888;
-            font-size: 16px;
+            font-size: 13.5px;
             position: relative;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .answer-box.current {
             border-color: #666;
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.04);
         }
 
         .answer-box.correct {
             border-color: #1db954;
-            background: rgba(29, 185, 84, 0.2);
+            background: rgba(29, 185, 84, 0.15);
             color: #1db954;
+            font-weight: 600;
         }
 
         .answer-box.incorrect {
             border-color: #e22134;
-            background: rgba(226, 33, 52, 0.2);
+            background: rgba(226, 33, 52, 0.15);
             color: #e22134;
+            font-weight: 500;
         }
 
         .answer-box.skipped {
             border-color: #ff9500;
-            background: rgba(255, 149, 0, 0.2);
+            background: rgba(255, 149, 0, 0.15);
             color: #ff9500;
+            font-weight: 500;
         }
 
         .attempt-number {
             position: absolute;
-            left: -40px;
-            color: #666;
-            font-size: 14px;
-            font-weight: bold;
+            left: -26px;
+            color: #555;
+            font-size: 11px;
+            font-weight: 700;
         }
 
         /* Game over screen */
@@ -455,36 +546,65 @@
             display: flex;
             justify-content: space-between;
             width: 100%;
-            margin-bottom: 20px;
-            font-size: 14px;
+            margin-bottom: 16px;
+            font-size: 13px;
             color: #888;
         }
 
         /* Responsive design */
         @media (max-width: 768px) {
             .game-header {
-                padding: 15px 20px;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                padding: 14px 16px;
+            }
+
+            .header-left {
+                display: none;
             }
 
             .game-title {
-                font-size: 24px;
+                font-size: 22px;
             }
 
-            .icon-button {
-                width: 35px;
-                height: 35px;
-                font-size: 16px;
+            .header-right {
+                width: 100%;
+                justify-content: center;
+                flex-wrap: wrap;
+                gap: 8px;
+            }
+
+            .playlist-select {
+                max-width: 150px;
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .header-action-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .game-content {
+                padding: 16px 12px 32px;
             }
 
             .play-button {
-                width: 70px;
-                height: 70px;
-                font-size: 20px;
+                width: 58px;
+                height: 58px;
+                font-size: 18px;
+                margin-bottom: 12px;
             }
 
             .attempt-number {
-                left: -30px;
-                font-size: 12px;
+                left: -22px;
+                font-size: 10px;
+            }
+
+            .shortcuts-legend {
+                gap: 10px;
+                font-size: 11px;
             }
         }
 
@@ -966,20 +1086,27 @@
                     <span id="currentTime">0:00</span>
                     <span id="totalTime">0:01</span>
                 </div>
-                <button class="play-button" id="playButton">▶</button>
+                <button class="play-button" id="playButton" title="Play / Pause snippet (Shortcut: Space)">▶</button>
             </div>
 
             <!-- Search input -->
             <div class="search-container">
-                <input type="text" class="search-input" placeholder="Know it? Search for the title or artist" id="searchInput" autocomplete="off" spellcheck="false">
+                <input type="text" class="search-input" placeholder="Know it? Search for the title or artist (Press / to focus)" id="searchInput" autocomplete="off" spellcheck="false">
                 <button class="clear-button" id="clearButton">✕</button>
                 <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
             </div>
 
             <!-- Action buttons -->
             <div class="action-buttons">
-                <button class="action-button skip-button" id="skipButton">SKIP (+1s)</button>
-                <button class="action-button submit-button" id="submitButton">SUBMIT</button>
+                <button class="action-button skip-button" id="skipButton" title="Skip attempt (Shortcut: S)">SKIP (+1s) <span class="shortcut-tag">S</span></button>
+                <button class="action-button submit-button" id="submitButton" title="Submit guess (Shortcut: Enter)">SUBMIT</button>
+            </div>
+
+            <!-- Shortcuts legend -->
+            <div class="shortcuts-legend">
+                <span class="shortcut-item"><kbd class="kbd-key">Space</kbd> Play/Pause</span>
+                <span class="shortcut-item"><kbd class="kbd-key">S</kbd> Skip</span>
+                <span class="shortcut-item"><kbd class="kbd-key">/</kbd> Search</span>
             </div>
 
             <!-- Game over screen -->
@@ -2532,11 +2659,22 @@
             }
         }
 
+        function updateSkipButtonLabel() {
+            if (!skipButton) return;
+            if (currentAttempt < MAX_ATTEMPTS) {
+                const added = SNIPPET_DURATIONS[currentAttempt] - SNIPPET_DURATIONS[currentAttempt - 1];
+                skipButton.innerHTML = `SKIP (+${added}s) <span class="shortcut-tag">S</span>`;
+            } else {
+                skipButton.innerHTML = `SKIP (GIVE UP) <span class="shortcut-tag">S</span>`;
+            }
+        }
+
         function updateGameState() {
             // Update UI for next attempt
             currentAttemptDisplay.textContent = currentAttempt;
             clipLengthDisplay.textContent = SNIPPET_DURATIONS[currentAttempt - 1];
             totalTimeDisplay.textContent = `0:${SNIPPET_DURATIONS[currentAttempt - 1].toString().padStart(2, '0')}`;
+            updateSkipButtonLabel();
 
             // Highlight next box
             const boxes = document.querySelectorAll('.answer-box');
@@ -2607,6 +2745,7 @@
             clipLengthDisplay.textContent = SNIPPET_DURATIONS[0];
             totalTimeDisplay.textContent = `0:${SNIPPET_DURATIONS[0].toString().padStart(2, '0')}`;
             instructionText.textContent = "Turn up the volume and tap to start the track!";
+            updateSkipButtonLabel();
             
             // Reset answer boxes
             const boxes = document.querySelectorAll('.answer-box');
@@ -2637,10 +2776,90 @@
             await prepareCurrentSong();
         }
 
+        function handleGlobalKeyDown(e) {
+            const isModalOpen = customPlaylistModal && !customPlaylistModal.classList.contains('hidden');
+            const activeEl = document.activeElement;
+            const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+
+            // Modal handling
+            if (isModalOpen) {
+                if (e.key === 'Escape') {
+                    closeCustomPlaylistModal();
+                }
+                return;
+            }
+
+            // Ctrl+Space: Play/Pause even if input is focused
+            if ((e.ctrlKey || e.metaKey) && (e.code === 'Space' || e.key === ' ')) {
+                e.preventDefault();
+                playAudio();
+                return;
+            }
+
+            // Ctrl+S: Skip attempt even if input is focused
+            if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+                e.preventDefault();
+                if (!gameEnded) {
+                    skipAttempt();
+                }
+                return;
+            }
+
+            // Typing inside search input
+            if (isTyping) {
+                if (e.key === 'Escape') {
+                    hideAutocomplete();
+                    searchInput.blur();
+                }
+                return;
+            }
+
+            // Spacebar: Play / Pause toggle
+            if (e.code === 'Space' || e.key === ' ') {
+                e.preventDefault();
+                playAudio();
+                return;
+            }
+
+            // 'S' or 's': Skip attempt
+            if (e.key === 's' || e.key === 'S') {
+                e.preventDefault();
+                if (!gameEnded) {
+                    skipAttempt();
+                }
+                return;
+            }
+
+            // 'K' or 'P': Play / Pause toggle
+            if (e.key === 'k' || e.key === 'K' || e.key === 'p' || e.key === 'P') {
+                e.preventDefault();
+                playAudio();
+                return;
+            }
+
+            // '/': Focus search input
+            if (e.key === '/') {
+                e.preventDefault();
+                searchInput.focus();
+                return;
+            }
+
+            // Enter on Game Over screen: Play Again
+            if (gameEnded && e.key === 'Enter') {
+                const playAgainBtn = document.getElementById('playAgainButton');
+                if (playAgainBtn && gameOver.style.display !== 'none') {
+                    e.preventDefault();
+                    resetGame(false);
+                    return;
+                }
+            }
+        }
+
         function setupEventListeners() {
             playButton.addEventListener('click', playAudio);
             submitButton.addEventListener('click', submitGuess);
             skipButton.addEventListener('click', skipAttempt);
+            window.addEventListener('keydown', handleGlobalKeyDown);
             clearButton.addEventListener('click', () => {
                 searchInput.value = '';
                 selectedSongGuess = null;
