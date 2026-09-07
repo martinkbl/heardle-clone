@@ -102,15 +102,35 @@ async function extractDeezerPlaylistId(input, maxRedirects = 8) {
 }
 
 function cleanSongTitle(title) {
-    return (title || 'Unknown Title')
-        .replace(/[\(\[\{].*?[\)\]\}]/g, '')
-        .replace(/Official Video/gi, '')
-        .replace(/Official Audio/gi, '')
-        .replace(/Lyrics/gi, '')
-        .replace(/ft\./gi, '')
-        .replace(/feat\./gi, '')
-        .replace(/,/g, '')
+    if (!title) return 'Unknown Title';
+    let cleaned = title
+        .replace(/\((feat\.|ft\.|featuring).*?\)/gi, '')
+        .replace(/\[(feat\.|ft\.|featuring).*?\]/gi, '')
+        .replace(/\(Official Video.*?\)/gi, '')
+        .replace(/\[Official Video.*?\]/gi, '')
+        .replace(/\(Official Music Video.*?\)/gi, '')
+        .replace(/\[Official Music Video.*?\]/gi, '')
+        .replace(/\(Official Audio.*?\)/gi, '')
+        .replace(/\[Official Audio.*?\]/gi, '')
+        .replace(/\(Audio Officiel.*?\)/gi, '')
+        .replace(/\[Audio Officiel.*?\]/gi, '')
+        .replace(/\(Clip Officiel.*?\)/gi, '')
+        .replace(/\[Clip Officiel.*?\]/gi, '')
+        .replace(/\(Lyrics.*?\)/gi, '')
+        .replace(/\[Lyrics.*?\]/gi, '')
+        .replace(/\(Paroles.*?\)/gi, '')
+        .replace(/\[Paroles.*?\]/gi, '')
+        .replace(/\(Lyric Video.*?\)/gi, '')
+        .replace(/\[Lyric Video.*?\]/gi, '')
+        .replace(/\bft\.\s+.*$/gi, '')
+        .replace(/\bfeat\.\s+.*$/gi, '')
+        .replace(/\bfeaturing\s+.*$/gi, '')
         .trim();
+
+    if (!cleaned) {
+        cleaned = title.replace(/[\[\]\(\)]/g, '').trim();
+    }
+    return cleaned || title;
 }
 
 module.exports = async (req, res) => {
@@ -148,12 +168,14 @@ module.exports = async (req, res) => {
 
         const songs = tracksData.map(item => {
             const rawTitle = item.title_short || item.title || 'Unknown Title';
+            const fullTitle = item.title || rawTitle;
             const rawArtist = (item.artist && item.artist.name) ? item.artist.name : 'Unknown Artist';
 
             return {
-                id: null, // to be matched with YouTube audio on demand
+                id: null, // to be matched with YouTube audio on demand if needed
                 title: cleanSongTitle(rawTitle),
                 artist: rawArtist.trim(),
+                original_title: fullTitle,
                 audioPreviewUrl: item.preview || null,
                 deezerId: item.id || null,
                 source: 'deezer'

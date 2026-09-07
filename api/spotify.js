@@ -54,6 +54,55 @@ function extractSpotifyPlaylistId(input) {
     return val.trim();
 }
 
+function cleanSongTitle(title) {
+    if (!title) return 'Unknown Title';
+    let cleaned = title
+        .replace(/\((feat\.|ft\.|featuring).*?\)/gi, '')
+        .replace(/\[(feat\.|ft\.|featuring).*?\]/gi, '')
+        .replace(/\(Official Video.*?\)/gi, '')
+        .replace(/\[Official Video.*?\]/gi, '')
+        .replace(/\(Official Music Video.*?\)/gi, '')
+        .replace(/\[Official Music Video.*?\]/gi, '')
+        .replace(/\(Official Audio.*?\)/gi, '')
+        .replace(/\[Official Audio.*?\]/gi, '')
+        .replace(/\(Audio Officiel.*?\)/gi, '')
+        .replace(/\[Audio Officiel.*?\]/gi, '')
+        .replace(/\(Clip Officiel.*?\)/gi, '')
+        .replace(/\[Clip Officiel.*?\]/gi, '')
+        .replace(/\(Lyrics.*?\)/gi, '')
+        .replace(/\[Lyrics.*?\]/gi, '')
+        .replace(/\(Paroles.*?\)/gi, '')
+        .replace(/\[Paroles.*?\]/gi, '')
+        .replace(/\(Lyric Video.*?\)/gi, '')
+        .replace(/\[Lyric Video.*?\]/gi, '')
+        .replace(/\bft\.\s+.*$/gi, '')
+        .replace(/\bfeat\.\s+.*$/gi, '')
+        .replace(/\bfeaturing\s+.*$/gi, '')
+        .trim();
+
+    if (!cleaned) {
+        cleaned = title.replace(/[\[\]\(\)]/g, '').trim();
+    }
+    return cleaned || title;
+}
+
+async function findDeezerPreviewFallback(artist, title) {
+    try {
+        const cleanA = artist.split(',')[0].trim();
+        const cleanT = cleanSongTitle(title);
+        const searchUrl = `https://api.deezer.com/search?q=${encodeURIComponent(cleanA + ' ' + cleanT)}&limit=3`;
+        const data = await fetchHttp(searchUrl);
+        if (data && Array.isArray(data.data) && data.data.length > 0) {
+            for (const item of data.data) {
+                if (item.preview) return item.preview;
+            }
+        }
+    } catch (e) {
+        // silent fallback
+    }
+    return null;
+}
+
 module.exports = async (req, res) => {
     // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -91,24 +140,14 @@ module.exports = async (req, res) => {
                     playlistName = entity.name || entity.title || 'Spotify Playlist';
                     const trackList = entity.trackList || [];
                     songs = trackList.map(item => {
-                        let title = (item.title || 'Unknown Title').replace(/\u00a0/g, ' ').trim();
-                        let artist = (item.subtitle || 'Unknown Artist').replace(/\u00a0/g, ' ').trim();
-
-                        // Basic clean up
-                        title = title
-                            .replace(/[\(\[\{].*?[\)\]\}]/g, '')
-                            .replace(/Official Video/gi, '')
-                            .replace(/Official Audio/gi, '')
-                            .replace(/Lyrics/gi, '')
-                            .replace(/ft\./gi, '')
-                            .replace(/feat\./gi, '')
-                            .replace(/,/g, '')
-                            .trim();
+                        const rawTitle = (item.title || 'Unknown Title').replace(/\u00a0/g, ' ').trim();
+                        const rawArtist = (item.subtitle || 'Unknown Artist').replace(/\u00a0/g, ' ').trim();
 
                         return {
-                            id: null, // to be resolved on demand with YouTube search
-                            title: title,
-                            artist: artist,
+                            id: null, // to be resolved on demand with YouTube search if needed
+                            title: cleanSongTitle(rawTitle),
+                            artist: rawArtist,
+                            original_title: rawTitle,
                             spotifyUri: item.uri || null,
                             audioPreviewUrl: item.audioPreview?.url || null,
                             source: 'spotify'
