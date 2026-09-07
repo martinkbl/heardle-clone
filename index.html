@@ -1637,6 +1637,11 @@
         async function resolveSongAudio(song) {
             if (song.audioPreviewUrl) return song.audioPreviewUrl;
             if (song.id) return song.id;
+            return await resolveSongYouTubeId(song);
+        }
+
+        async function resolveSongYouTubeId(song) {
+            if (song.id) return song.id;
 
             const cleanArtist = song.artist ? song.artist.split(',')[0].trim() : '';
             const cleanTitle = song.title ? song.title.trim() : '';
@@ -1648,15 +1653,13 @@
                 const matchRes = await fetch(matchUrl);
                 if (matchRes.ok) {
                     const matchData = await matchRes.json();
-                    if (matchData.audioPreviewUrl) {
+                    if (matchData.audioPreviewUrl && !song.audioPreviewUrl) {
                         song.audioPreviewUrl = matchData.audioPreviewUrl;
                     }
                     if (matchData.videoId) {
                         song.id = matchData.videoId;
-                    }
-                    if (song.audioPreviewUrl || song.id) {
-                        console.log(`[Audio Matcher] Matched "${cleanArtist} - ${cleanTitle}" (Preview: ${!!song.audioPreviewUrl}, Video: ${song.id})`);
-                        return song.audioPreviewUrl || song.id;
+                        console.log(`[YouTube Resolver] Matched videoId "${song.id}" for "${cleanArtist} - ${cleanTitle}"`);
+                        return song.id;
                     }
                 }
             } catch (e) {
@@ -1689,6 +1692,7 @@
 
                             if (scored.length > 0) {
                                 song.id = scored[0].videoId;
+                                console.log(`[YouTube Resolver Client] Matched videoId "${song.id}" for "${cleanArtist} - ${cleanTitle}"`);
                                 return song.id;
                             }
                         }
@@ -1698,11 +1702,7 @@
                 console.warn('Direct client YouTube search fallback failed:', e);
             }
 
-            if (song.audioPreviewUrl || song.id) {
-                return song.audioPreviewUrl || song.id;
-            }
-
-            throw new Error(`Could not find audio for ${song.artist} - ${song.title}`);
+            return song.id || song.audioPreviewUrl || null;
         }
 
         function populatePlaylistSelect() {
@@ -2120,6 +2120,7 @@
         // Initialize Game
         window.onload = async function () {
             setupEventListeners();
+            loadYouTubeIframeAPI();
             await loadSongs();
         };
 
@@ -2197,7 +2198,6 @@
 
         async function prepareCurrentSong() {
             if (!currentSong) return;
-
             stopPlayback();
 
             // 1. Direct official audio preview (Spotify or Deezer 30s official stream - 100% audio fidelity for guessing)
@@ -2213,8 +2213,8 @@
 
                 // Non-blocking background YouTube lookup so the full track is immediately ready on game over
                 if (!currentSong.id) {
-                    resolveSongAudio(currentSong).then(() => {
-                        if (gameEnded && currentSong.id) {
+                    resolveSongYouTubeId(currentSong).then((id) => {
+                        if (id && gameEnded) {
                             switchToFullYouTubeTrack();
                         }
                     }).catch(() => {});
@@ -2283,7 +2283,7 @@
             // Resolve YouTube video ID if not present
             if (!currentSong.id) {
                 try {
-                    await resolveSongAudio(currentSong);
+                    await resolveSongYouTubeId(currentSong);
                 } catch (e) {
                     console.warn('Could not resolve YouTube ID for full playback:', e);
                 }
@@ -2299,7 +2299,9 @@
                     ytLink.classList.remove('hidden');
                 }
 
-                if (player && player.cueVideoById) {
+                if (!player) {
+                    initYouTubePlayer();
+                } else if (player.cueVideoById) {
                     try {
                         player.cueVideoById(currentSong.id);
                         setTimeout(() => {
@@ -2313,8 +2315,6 @@
                     } catch (e) {
                         initYouTubePlayer();
                     }
-                } else {
-                    initYouTubePlayer();
                 }
             }
         }
@@ -2360,6 +2360,18 @@
         function createYTPlayer() {
             if (!currentSong || !currentSong.id) return;
             try {
+                if (player && player.cueVideoById) {
+                    player.cueVideoById(currentSong.id);
+                    return;
+                }
+                const audioEl = document.getElementById('gameAudio');
+                if (!audioEl) {
+                    const newEl = document.createElement('div');
+                    newEl.id = 'gameAudio';
+                    const container = document.querySelector('.audio-player');
+                    if (container) container.prepend(newEl);
+                }
+
                 player = new YT.Player('gameAudio', {
                     height: '1',
                     width: '1',
@@ -2445,7 +2457,7 @@
                 playButton.textContent = "▶";
                 progressBar.style.width = '0%';
                 currentTimeDisplay.textContent = '0:00';
-                if (gameEnded && player.getDuration) {
+                if (gameEnded && player && player.getDuration) {
                     totalTimeDisplay.textContent = formatTime(player.getDuration());
                 }
             }
@@ -2507,7 +2519,13 @@
             // Full playback mode when game is over
             if (gameEnded) {
                 if (isPlaying) {
-                    stopPlayback();
+                    isPlaying = false;
+                    playButton.textContent = "▶";
+                    if (activeAudioType === 'youtube' && player && player.pauseVideo) {
+                        try { player.pauseVideo(); } catch (e) {}
+                    } else if (activeAudioType === 'preview' && htmlAudio) {
+                        try { htmlAudio.pause(); } catch (e) {}
+                    }
                 } else {
                     isPlaying = true;
                     playButton.textContent = "⏸";
@@ -2534,17 +2552,27 @@
                                 initYouTubePlayer();
                             }
                         }
-                    } else if (activeAudioType === 'preview' && htmlAudio) {
-                        // Fallback only if YouTube could not be matched
-                        htmlAudio.play().then(() => {
-                            if (htmlAudio.duration) {
-                                totalTimeDisplay.textContent = formatTime(htmlAudio.duration);
+                    } else {
+                        // YouTube ID not yet ready: resolve and play
+                        instructionText.textContent = "Loading full track...";
+                        resolveSongYouTubeId(currentSong).then(videoId => {
+                            if (videoId && isPlaying && gameEnded) {
+                                switchToFullYouTubeTrack().then(() => {
+                                    if (player && player.playVideo) {
+                                        player.playVideo();
+                                        updateProgressBarForFullPlayback();
+                                    }
+                                });
+                            } else if (!videoId && isPlaying && htmlAudio) {
+                                activeAudioType = 'preview';
+                                htmlAudio.play().then(() => {
+                                    if (htmlAudio.duration) totalTimeDisplay.textContent = formatTime(htmlAudio.duration);
+                                    updateProgressBarForFullPlayback();
+                                }).catch(() => {
+                                    isPlaying = false;
+                                    playButton.textContent = "▶";
+                                });
                             }
-                            updateProgressBarForFullPlayback();
-                        }).catch(e => {
-                            console.warn('Preview playback error:', e);
-                            isPlaying = false;
-                            playButton.textContent = "▶";
                         });
                     }
                 }
