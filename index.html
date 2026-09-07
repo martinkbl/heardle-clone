@@ -481,7 +481,8 @@
         .game-over {
             display: none;
             text-align: center;
-            padding: 40px 20px;
+            padding: 20px 0 35px;
+            width: 100%;
         }
 
         .game-over.show {
@@ -505,7 +506,8 @@
             background: #222;
             padding: 20px;
             border-radius: 8px;
-            margin: 20px 0;
+            margin: 16px 0 20px 0;
+            width: 100%;
         }
 
         .song-title {
@@ -526,16 +528,15 @@
             margin-bottom: 8px;
         }
 
-        /* Embedded Video Player on Game Over */
+        /* Embedded Video Player on Game Over (Larger, outside the box) */
         .game-over-video-container {
             width: 100%;
-            max-width: 460px;
-            margin: 16px auto 14px auto;
-            border-radius: 10px;
+            margin: 20px 0 24px 0;
+            border-radius: 12px;
             overflow: hidden;
             background: #000;
-            box-shadow: 0 10px 28px rgba(0, 0, 0, 0.65);
-            border: 1px solid #333333;
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.75);
+            border: 1.5px solid #2e2e2e;
             transition: all 0.3s ease;
         }
 
@@ -1193,19 +1194,20 @@
                     <div class="song-artist" id="correctArtist">Artist Name</div>
                     <div class="attempts-used" id="attemptsUsed">Solved in 1 attempt!</div>
 
-                    <!-- Embedded YouTube Video -->
-                    <div class="game-over-video-container hidden" id="gameOverVideoContainer">
-                        <div class="video-responsive-wrapper" id="videoResponsiveWrapper">
-                            <div id="gameOverVideoPlayer"></div>
-                        </div>
-                    </div>
-
                     <div class="song-actions-row" id="songActionsRow">
                         <a id="ytLink" class="song-external-link yt-link" target="_blank" rel="noopener">▶ YouTube</a>
                         <a id="spotifyLink" class="song-external-link spotify-link hidden" target="_blank" rel="noopener">🟢 Spotify</a>
                         <a id="deezerLink" class="song-external-link deezer-link hidden" target="_blank" rel="noopener">🟣 Deezer</a>
                     </div>
                 </div>
+
+                <!-- Embedded YouTube Video (Larger, outside song-info box) -->
+                <div class="game-over-video-container hidden" id="gameOverVideoContainer">
+                    <div class="video-responsive-wrapper" id="videoResponsiveWrapper">
+                        <div id="gameOverVideoPlayer"></div>
+                    </div>
+                </div>
+
                 <button class="play-again-button" id="playAgainButton">Play Again</button>
             </div>
         </div>
