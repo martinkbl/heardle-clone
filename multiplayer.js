@@ -1,5 +1,6 @@
 /**
  * Heardle Unlimited - Hybrid Multiplayer Client Module
+ * Standalone Engine for multiplayer.html
  * Supports both WebSocket (Node dev server) and WebRTC PeerJS (Vercel / Static deployments).
  */
 
@@ -22,7 +23,6 @@
         roundSecondsLeft: 60,
         roundDuration: 60,
         availablePlaylists: [],
-        activeMode: 'solo', // 'solo' | 'multiplayer'
         playerAvatar: '🎧',
         playerName: localStorage.getItem('heardle_mp_name') || '',
         pendingRoomCodeFromUrl: null,
@@ -31,26 +31,359 @@
 
     const AVATARS = ['🎧', '🎵', '🔥', '⚡', '👑', '🚀', '🎸', '🎹', '🦊', '🐯', '💎', '⭐'];
 
-    // Check URL parameters for ?room=CODE or ?join=CODE
+    // ==========================================
+    // STANDALONE AUDIO ENGINE & YOUTUBE PLAYER
+    // ==========================================
+    let mpYtPlayer = null;
+    let mpYtReady = false;
+
+    function loadMpYouTubeAPI() {
+        if (window.YT && window.YT.Player) {
+            initMpYTPlayer();
+            return;
+        }
+        if (!document.getElementById('yt-iframe-api-script')) {
+            const tag = document.createElement('script');
+            tag.id = 'yt-iframe-api-script';
+            tag.src = "https://www.youtube.com/iframe_api";
+            const first = document.getElementsByTagName('script')[0];
+            if (first) first.parentNode.insertBefore(tag, first);
+            else document.head.appendChild(tag);
+        }
+    }
+
+    window.onYouTubeIframeAPIReady = function () {
+        initMpYTPlayer();
+    };
+
+    function initMpYTPlayer() {
+        if (!window.YT || !window.YT.Player) return;
+        let host = document.getElementById('globalAudioContainer');
+        if (!host) {
+            host = document.createElement('div');
+            host.id = 'globalAudioContainer';
+            host.style.cssText = "position: fixed; bottom: 0; right: 0; width: 160px; height: 120px; opacity: 0.01; pointer-events: none; z-index: -1; overflow: hidden;";
+            document.body.appendChild(host);
+        }
+        let audioEl = document.getElementById('gameAudio');
+        if (!audioEl) {
+            audioEl = document.createElement('div');
+            audioEl.id = 'gameAudio';
+            host.appendChild(audioEl);
+        }
+
+        try {
+            if (mpYtPlayer && mpYtPlayer.destroy) {
+                try { mpYtPlayer.destroy(); } catch(e) {}
+                audioEl = document.createElement('div');
+                audioEl.id = 'gameAudio';
+                host.appendChild(audioEl);
+            }
+
+            mpYtPlayer = new YT.Player('gameAudio', {
+                height: '100%',
+                width: '100%',
+                videoId: 'OYOcnrVE4Gc',
+                playerVars: {
+                    'playsinline': 1,
+                    'controls': 0,
+                    'disablekb': 1,
+                    'fs': 0,
+                    'origin': window.location.origin
+                },
+                events: {
+                    'onReady': (e) => {
+                        mpYtReady = true;
+                        try {
+                            mpYtPlayer.unMute();
+                            mpYtPlayer.setVolume(100);
+                        } catch (err) {}
+                    },
+                    'onError': (e) => console.warn('MP YT Player Error:', e.data)
+                }
+            });
+        } catch (e) {
+            console.error('Error creating MP YT Player:', e);
+        }
+    }
+
+    window.HeardleAudioEngine = {
+        activeType: 'youtube',
+        currentSong: null,
+        htmlAudio: null,
+        isPlaying: false,
+        playbackTimer: null,
+        progressRaf: null,
+        checkInterval: null,
+
+        cueSong: function (song) {
+            if (!song) return;
+            this.stop();
+            this.currentSong = song;
+
+            if (song.audioPreviewUrl) {
+                this.activeType = 'preview';
+                if (!this.htmlAudio) this.htmlAudio = new Audio();
+                this.htmlAudio.src = song.audioPreviewUrl;
+                this.htmlAudio.preload = 'auto';
+                this.htmlAudio.currentTime = 0;
+                return;
+            }
+
+            if (song.id) {
+                this.activeType = 'youtube';
+                if (mpYtPlayer && typeof mpYtPlayer.cueVideoById === 'function') {
+                    try {
+                        mpYtPlayer.unMute();
+                        mpYtPlayer.setVolume(100);
+                        mpYtPlayer.cueVideoById(song.id);
+                    } catch (e) {
+                        initMpYTPlayer();
+                    }
+                } else {
+                    initMpYTPlayer();
+                }
+            }
+        },
+
+        playSnippet: function (duration, onProgress, onFinish) {
+            this.stop();
+            this.isPlaying = true;
+
+            if (this.activeType === 'preview' && this.htmlAudio) {
+                try {
+                    this.htmlAudio.currentTime = 0;
+                    const p = this.htmlAudio.play();
+                    if (p !== undefined) p.catch(e => console.warn('Preview play error:', e));
+                } catch (e) {
+                    console.warn('Preview play exception:', e);
+                }
+
+                const start = performance.now();
+                const step = (timestamp) => {
+                    if (!this.isPlaying) return;
+                    const elapsed = (timestamp - start) / 1000;
+                    const progress = Math.min(elapsed / duration, 1);
+                    if (typeof onProgress === 'function') onProgress(progress, elapsed, duration);
+                    if (progress < 1) {
+                        this.progressRaf = requestAnimationFrame(step);
+                    } else {
+                        this.stop();
+                        if (typeof onFinish === 'function') onFinish();
+                    }
+                };
+                this.progressRaf = requestAnimationFrame(step);
+
+                this.playbackTimer = setTimeout(() => {
+                    this.stop();
+                    if (typeof onFinish === 'function') onFinish();
+                }, duration * 1000);
+
+            } else if (this.activeType === 'youtube') {
+                if (!mpYtPlayer || typeof mpYtPlayer.playVideo !== 'function') {
+                    initMpYTPlayer();
+                    this.isPlaying = false;
+                    if (typeof onFinish === 'function') onFinish();
+                    return;
+                }
+
+                try {
+                    mpYtPlayer.unMute();
+                    mpYtPlayer.setVolume(100);
+                    const videoData = mpYtPlayer.getVideoData ? mpYtPlayer.getVideoData() : null;
+                    if (this.currentSong && this.currentSong.id && (!videoData || videoData.video_id !== this.currentSong.id)) {
+                        mpYtPlayer.loadVideoById({ videoId: this.currentSong.id, startSeconds: 0 });
+                    } else {
+                        mpYtPlayer.seekTo(0, true);
+                        mpYtPlayer.playVideo();
+                    }
+                } catch (e) {
+                    console.warn('YT playVideo error:', e);
+                }
+
+                let playbackStarted = false;
+                let start = 0;
+
+                const startSnippetTimer = () => {
+                    if (playbackStarted || !this.isPlaying) return;
+                    playbackStarted = true;
+                    start = performance.now();
+
+                    const step = (timestamp) => {
+                        if (!this.isPlaying) return;
+                        const elapsed = (timestamp - start) / 1000;
+                        const progress = Math.min(elapsed / duration, 1);
+                        if (typeof onProgress === 'function') onProgress(progress, elapsed, duration);
+
+                        if (progress < 1) {
+                            this.progressRaf = requestAnimationFrame(step);
+                        } else {
+                            this.stop();
+                            if (typeof onFinish === 'function') onFinish();
+                        }
+                    };
+                    this.progressRaf = requestAnimationFrame(step);
+
+                    this.playbackTimer = setTimeout(() => {
+                        this.stop();
+                        if (typeof onFinish === 'function') onFinish();
+                    }, duration * 1000);
+                };
+
+                let checks = 0;
+                this.checkInterval = setInterval(() => {
+                    if (!this.isPlaying) {
+                        clearInterval(this.checkInterval);
+                        return;
+                    }
+                    checks++;
+                    try {
+                        const state = mpYtPlayer.getPlayerState ? mpYtPlayer.getPlayerState() : -1;
+                        const time = mpYtPlayer.getCurrentTime ? mpYtPlayer.getCurrentTime() : 0;
+                        if (state === 1 || time > 0) {
+                            clearInterval(this.checkInterval);
+                            startSnippetTimer();
+                        } else if (checks >= 25) {
+                            clearInterval(this.checkInterval);
+                            startSnippetTimer();
+                        }
+                    } catch (e) {
+                        clearInterval(this.checkInterval);
+                        startSnippetTimer();
+                    }
+                }, 100);
+            }
+        },
+
+        stop: function () {
+            this.isPlaying = false;
+            if (this.playbackTimer) {
+                clearTimeout(this.playbackTimer);
+                this.playbackTimer = null;
+            }
+            if (this.checkInterval) {
+                clearInterval(this.checkInterval);
+                this.checkInterval = null;
+            }
+            if (this.progressRaf) {
+                cancelAnimationFrame(this.progressRaf);
+                this.progressRaf = null;
+            }
+            if (this.htmlAudio) {
+                try {
+                    this.htmlAudio.pause();
+                    this.htmlAudio.currentTime = 0;
+                } catch (e) {}
+            }
+            if (mpYtPlayer && typeof mpYtPlayer.pauseVideo === 'function') {
+                try {
+                    mpYtPlayer.pauseVideo();
+                    mpYtPlayer.seekTo(0, true);
+                } catch (e) {}
+            }
+        },
+
+        playFull: function () {
+            this.isPlaying = true;
+            if (this.activeType === 'preview' && this.htmlAudio) {
+                this.htmlAudio.play().catch(e => console.warn('Full audio error:', e));
+            } else if (mpYtPlayer && typeof mpYtPlayer.playVideo === 'function') {
+                try {
+                    mpYtPlayer.unMute();
+                    mpYtPlayer.setVolume(100);
+                    mpYtPlayer.playVideo();
+                } catch (e) {}
+            }
+        },
+
+        pauseFull: function () {
+            this.isPlaying = false;
+            if (this.htmlAudio) {
+                try { this.htmlAudio.pause(); } catch (e) {}
+            }
+            if (mpYtPlayer && typeof mpYtPlayer.pauseVideo === 'function') {
+                try { mpYtPlayer.pauseVideo(); } catch (e) {}
+            }
+        }
+    };
+
+    // ==========================================
+    // ALL SEARCHABLE SONGS POOL
+    // ==========================================
+    function getAllSearchableSongs(roomPlaylistKey = '') {
+        const seen = new Set();
+        const result = [];
+
+        function addSong(s, priority = 0) {
+            if (!s || !s.title) return;
+            const key = `${normalizeText(s.artist || '')} - ${normalizeText(s.title || '')}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                result.push({ ...s, priority });
+            }
+        }
+
+        // 1. Current room playlist songs (highest priority)
+        const plPool = getP2PSongs(roomPlaylistKey || (MP.room ? MP.room.playlistKey : ''));
+        if (plPool && Array.isArray(plPool)) {
+            plPool.forEach(s => addSong(s, 10));
+        }
+
+        // 2. All playlists in window.HEARDLE_PLAYLISTS
+        if (window.HEARDLE_PLAYLISTS) {
+            Object.keys(window.HEARDLE_PLAYLISTS).forEach(k => {
+                const pl = window.HEARDLE_PLAYLISTS[k];
+                if (pl && Array.isArray(pl.songs)) {
+                    pl.songs.forEach(s => addSong(s, 5));
+                }
+            });
+        }
+
+        // 3. Fallback window.songs / window.HEARDLE_SONGS
+        if (window.songs && Array.isArray(window.songs)) {
+            window.songs.forEach(s => addSong(s, 3));
+        }
+
+        return result;
+    }
+
+    // ==========================================
+    // URL PARAMS & NAVIGATION
+    // ==========================================
     function checkUrlParams() {
         const urlParams = new URLSearchParams(window.location.search);
         const roomCode = urlParams.get('room') || urlParams.get('join');
         if (roomCode) {
             MP.pendingRoomCodeFromUrl = roomCode.toUpperCase().trim();
             setTimeout(() => {
-                switchGameMode('multiplayer');
                 if (MP.pendingRoomCodeFromUrl) {
                     const joinInput = document.getElementById('mpJoinCodeInput');
                     if (joinInput) joinInput.value = MP.pendingRoomCodeFromUrl;
                     showJoinTab();
                 }
-            }, 300);
+            }, 200);
         }
     }
 
-    // Determine initial transport
+    function setupReturnSoloButton() {
+        const btnReturnSolo = document.getElementById('btnReturnSolo');
+        if (btnReturnSolo) {
+            btnReturnSolo.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (MP.room && (MP.room.state === 'PLAYING' || MP.room.state === 'ROUND_OVER')) {
+                    if (!confirm('Voulez-vous vraiment quitter la partie multijoueur en cours et retourner au mode Solo ?')) {
+                        return;
+                    }
+                }
+                window.location.href = '/';
+            });
+        }
+    }
+
+    // ==========================================
+    // TRANSPORT (WEBSOCKET / WEBRTC PEERJS)
+    // ==========================================
     function initTransport(callback) {
-        // If on Vercel or external domain without persistent WS backend, prioritize WebRTC
         const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
 
         if (!isLocalhost && typeof Peer !== 'undefined') {
@@ -61,7 +394,6 @@
             return;
         }
 
-        // Try WebSocket first
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host || 'localhost:3000';
         const wsUrl = `${protocol}//${host}`;
@@ -107,7 +439,7 @@
                 }
             };
 
-            MP.ws.onerror = (err) => {
+            MP.ws.onerror = () => {
                 clearTimeout(connectTimeout);
                 console.log('⚡ WebSocket not available, fallback to WebRTC PeerJS...');
                 MP.transport = 'webrtc';
@@ -137,16 +469,10 @@
         }
     }
 
-    // ==========================================
-    // WEBRTC PEER-TO-PEER ENGINE (FOR VERCEL / STATIC)
-    // ==========================================
-
     function handleWebRTCClientSend(message) {
         if (MP.isHost && MP.p2pRoomState) {
-            // Host processes message directly
             handleP2PHostAction(MP.playerId, message);
         } else if (MP.hostConn && MP.hostConn.open) {
-            // Guest sends to host
             MP.hostConn.send(message);
         } else if (message.type === 'CREATE_ROOM') {
             initP2PHostRoom(message);
@@ -187,7 +513,6 @@
         showToast('Création du salon en cours...', 'info');
         const roomCode = generateCode();
         const peerId = 'heardle-v2-' + roomCode.toLowerCase();
-
         const btnCreate = document.getElementById('btnCreateRoomSubmit');
 
         if (typeof Peer === 'undefined') {
@@ -280,7 +605,6 @@
                     btnCreate.textContent = 'Créer le salon privé 🚀';
                 }
                 if (err.type === 'unavailable-id') {
-                    // Retry with a new code
                     initP2PHostRoom(data);
                 } else {
                     showToast('Erreur de connexion P2P : ' + err.message, 'error');
@@ -329,21 +653,18 @@
                 MP.p2pRoomState.players.set(guestId, guest);
                 MP.room = sanitizeP2PRoom(MP.p2pRoomState);
 
-                // Send ROOM_JOINED to guest
                 conn.send({
                     type: 'ROOM_JOINED',
                     room: MP.room,
                     playerId: guestId
                 });
 
-                // Broadcast to all other guests
                 broadcastP2P({
                     type: 'PLAYER_JOINED',
                     player: guest,
                     room: MP.room
                 }, guestId);
 
-                // Update Host UI
                 renderLobbyPlayers();
                 showToast(`👋 ${guest.name} a rejoint le salon !`);
             } else {
@@ -722,7 +1043,7 @@
         };
 
         broadcastP2P(roundStartMsg);
-        handleIncomingMessage(roundStartMsg); // Run on Host
+        handleIncomingMessage(roundStartMsg);
 
         if (r.roundTimer) clearTimeout(r.roundTimer);
         r.roundTimer = setTimeout(() => {
@@ -793,7 +1114,7 @@
         };
 
         broadcastP2P(roundOverMsg);
-        handleIncomingMessage(roundOverMsg); // Run on Host
+        handleIncomingMessage(roundOverMsg);
     }
 
     function sanitizeP2PRoom(r) {
@@ -816,7 +1137,6 @@
     // ==========================================
     // UI DISPATCHER & EVENT HANDLERS
     // ==========================================
-
     function handleIncomingMessage(data) {
         const { type } = data;
 
@@ -897,37 +1217,12 @@
 
     function updateConnectionStatus(connected) {
         const dot = document.getElementById('mpConnectionDot');
+        const text = document.getElementById('mpConnectionText');
         if (dot) {
             dot.className = connected ? 'connection-dot online' : 'connection-dot offline';
-            dot.title = connected ? (MP.transport === 'webrtc' ? 'Mode P2P WebRTC' : 'Serveur WebSocket') : 'Déconnecté';
         }
-    }
-
-    function switchGameMode(mode) {
-        MP.activeMode = mode;
-        const soloContainer = document.getElementById('soloGameContent');
-        const mpContainer = document.getElementById('mpGameContent');
-        const soloTabBtn = document.getElementById('modeSoloBtn');
-        const mpTabBtn = document.getElementById('modeMpBtn');
-
-        if (mode === 'multiplayer') {
-            if (soloContainer) soloContainer.classList.add('hidden');
-            if (mpContainer) mpContainer.classList.remove('hidden');
-            if (soloTabBtn) soloTabBtn.classList.remove('active');
-            if (mpTabBtn) mpTabBtn.classList.add('active');
-
-            initTransport();
-
-            if (!MP.room) {
-                renderHubView();
-            } else if (MP.room.state === 'LOBBY') {
-                renderLobbyView();
-            }
-        } else {
-            if (soloContainer) soloContainer.classList.remove('hidden');
-            if (mpContainer) mpContainer.classList.add('hidden');
-            if (soloTabBtn) soloTabBtn.classList.add('active');
-            if (mpTabBtn) mpTabBtn.classList.remove('active');
+        if (text) {
+            text.textContent = connected ? (MP.transport === 'webrtc' ? 'P2P Connecté' : 'En ligne') : 'Hors ligne';
         }
     }
 
@@ -1026,7 +1321,7 @@
             });
 
             avatarDropdown.querySelectorAll('.avatar-btn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
+                btn.addEventListener('click', () => {
                     const av = btn.getAttribute('data-avatar');
                     MP.playerAvatar = av;
                     document.getElementById('mpCurrentAvatar').textContent = av;
@@ -1113,7 +1408,7 @@
         const baseUrl = window.location.origin.includes('localhost') 
             ? window.location.origin 
             : (window.location.origin || 'https://heardle-clone-delta.vercel.app');
-        const shareUrl = `${baseUrl}/?room=${MP.room.code}`;
+        const shareUrl = `${baseUrl}/multiplayer.html?room=${MP.room.code}`;
 
         container.innerHTML = `
             <div class="mp-lobby-card">
@@ -1264,7 +1559,6 @@
     // ==========================================
     // IN-GAME ROUND & CIRCULAR TIMER
     // ==========================================
-
     function handleRoundStart(data) {
         MP.currentRoundData = data;
         MP.room = data.room;
@@ -1307,10 +1601,10 @@
                         <div class="mp-game-stats">
                             <span>Tentative: <span id="mpCurrentAttempt">1</span>/6</span>
                             <span>Extrait: <span id="mpClipLength">1</span>s</span>
-                            <span id="mpSongSource">Source: Multijoueur</span>
+                            <span id="mpSongSource">Source: ${escapeHtml(data.room.playlistName || 'Multijoueur')}</span>
                         </div>
 
-                        <div class="answer-boxes mp-answer-boxes" id="mpAnswerBoxes">
+                        <div class="mp-answer-boxes" id="mpAnswerBoxes">
                             <div class="answer-box current" data-attempt="1"><div class="attempt-number">1</div></div>
                             <div class="answer-box" data-attempt="2"><div class="attempt-number">2</div></div>
                             <div class="answer-box" data-attempt="3"><div class="attempt-number">3</div></div>
@@ -1319,10 +1613,9 @@
                             <div class="answer-box" data-attempt="6"><div class="attempt-number">6</div></div>
                         </div>
 
-                        <p class="instruction-text" id="mpInstructionText">Écoutez et devinez le titre ou l'artiste !</p>
+                        <p class="instruction-text" id="mpInstructionText">Écoutez l'extrait et devinez le titre ou l'artiste !</p>
 
-                        <div class="audio-player mp-audio-player">
-                            <div id="mpGameAudio"></div>
+                        <div class="audio-player">
                             <div class="progress-container" id="mpProgressContainer">
                                 <div class="progress-bar" id="mpProgressBar"></div>
                             </div>
@@ -1330,16 +1623,16 @@
                                 <span id="mpCurrentTime">0:00</span>
                                 <span id="mpTotalTime">0:01</span>
                             </div>
-                            <button type="button" class="play-button" id="mpPlayButton">▶</button>
+                            <button type="button" class="play-button" id="mpPlayButton" title="Jouer / Pause (Espace)">▶</button>
                         </div>
 
-                        <div class="search-container mp-search-container">
-                            <input type="text" class="search-input" placeholder="Connaissez-vous le son ? Recherchez ici..." id="mpSearchInput" autocomplete="off" />
+                        <div class="search-container">
+                            <input type="text" class="search-input" placeholder="Titre ou artiste... (Appuyez sur /)" id="mpSearchInput" autocomplete="off" spellcheck="false" />
                             <button type="button" class="clear-button" id="mpClearButton">✕</button>
                             <div class="autocomplete-dropdown hidden" id="mpAutocompleteDropdown"></div>
                         </div>
 
-                        <div class="action-buttons mp-action-buttons">
+                        <div class="action-buttons">
                             <button type="button" class="action-button skip-button" id="mpSkipButton">SKIP (+1s)</button>
                             <button type="button" class="action-button submit-button" id="mpSubmitButton">VALIDER</button>
                         </div>
@@ -1641,50 +1934,149 @@
         }
     }
 
+    // ==========================================
+    // MULTIPLAYER AUTOCOMPLETE
+    // ==========================================
+    function highlightMatch(text, query) {
+        if (!query || !text) return escapeHtml(text || '');
+        const normText = normalizeText(text);
+        const normQuery = normalizeText(query);
+        const index = normText.indexOf(normQuery);
+        if (index === -1) return escapeHtml(text);
+
+        const before = text.slice(0, index);
+        const match = text.slice(index, index + query.length);
+        const after = text.slice(index + query.length);
+        return `${escapeHtml(before)}<span class="autocomplete-highlight">${escapeHtml(match)}</span>${escapeHtml(after)}`;
+    }
+
     function setupAutocomplete(inputEl) {
         if (!inputEl) return;
         const dropdown = document.getElementById('mpAutocompleteDropdown');
         if (!dropdown) return;
 
-        inputEl.addEventListener('input', () => {
-            const query = inputEl.value.trim().toLowerCase();
-            if (!query || query.length < 2) {
+        let activeSuggestionIndex = -1;
+        let currentSuggestions = [];
+
+        function updateSuggestions() {
+            const query = inputEl.value.trim();
+            const normQuery = normalizeText(query);
+            activeSuggestionIndex = -1;
+
+            if (normQuery.length === 0) {
                 dropdown.classList.add('hidden');
                 dropdown.innerHTML = '';
+                currentSuggestions = [];
                 return;
             }
 
-            const songPool = window.songs || window.HEARDLE_SONGS || [];
-            const matches = songPool.filter(s => {
-                if (!s) return false;
-                const title = (s.title || '').toLowerCase();
-                const artist = (s.artist || '').toLowerCase();
-                return title.includes(query) || artist.includes(query);
-            }).slice(0, 6);
+            const allSongs = getAllSearchableSongs(MP.room ? MP.room.playlistKey : '');
+            const queryWords = normQuery.split(' ').filter(w => w.length > 0);
+            const matches = [];
 
-            if (matches.length === 0) {
-                dropdown.classList.add('hidden');
+            for (const s of allSongs) {
+                const titleNorm = normalizeText(s.title);
+                const artistNorm = normalizeText(s.artist);
+                const originalTitleNorm = normalizeText(s.original_title || '');
+                const fullTextNorm = `${artistNorm} ${titleNorm}`;
+
+                let score = -1;
+                if (titleNorm === normQuery) score = 1000;
+                else if (titleNorm.startsWith(normQuery)) score = 800;
+                else if (artistNorm.startsWith(normQuery)) score = 700;
+                else if (titleNorm.includes(normQuery)) score = 500;
+                else if (artistNorm.includes(normQuery)) score = 400;
+                else if (fullTextNorm.includes(normQuery) || originalTitleNorm.includes(normQuery)) score = 300;
+                else if (queryWords.every(w => fullTextNorm.includes(w) || originalTitleNorm.includes(w))) score = 200;
+
+                if (score !== -1) {
+                    score += (s.priority || 0) * 10;
+                    matches.push({ song: s, score });
+                }
+            }
+
+            matches.sort((a, b) => {
+                if (a.score !== b.score) return b.score - a.score;
+                return a.song.title.localeCompare(b.song.title);
+            });
+
+            currentSuggestions = matches.slice(0, 8).map(m => m.song);
+
+            if (currentSuggestions.length === 0) {
+                dropdown.innerHTML = `<div class="autocomplete-no-results">Aucun titre correspondant</div>`;
+                dropdown.classList.remove('hidden');
                 return;
             }
 
-            dropdown.innerHTML = matches.map(s => `
-                <div class="autocomplete-item" data-title="${escapeHtml(s.title)}" data-artist="${escapeHtml(s.artist)}">
-                    <span class="item-title">${escapeHtml(s.title)}</span>
-                    <span class="item-artist">${escapeHtml(s.artist)}</span>
-                </div>
-            `).join('');
+            dropdown.innerHTML = currentSuggestions.map((song, index) => {
+                const highlightedTitle = highlightMatch(song.title, query);
+                const highlightedArtist = highlightMatch(song.artist, query);
+                return `
+                    <div class="autocomplete-item" data-index="${index}">
+                        <div class="autocomplete-item-icon">🎵</div>
+                        <div class="autocomplete-item-info">
+                            <div class="autocomplete-item-title">${highlightedTitle}</div>
+                            <div class="autocomplete-item-artist">${highlightedArtist}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
 
             dropdown.classList.remove('hidden');
+        }
 
-            dropdown.querySelectorAll('.autocomplete-item').forEach(item => {
-                item.addEventListener('click', () => {
-                    const title = item.getAttribute('data-title');
-                    const artist = item.getAttribute('data-artist');
-                    inputEl.value = `${artist} - ${title}`;
+        inputEl.addEventListener('input', updateSuggestions);
+
+        inputEl.addEventListener('keydown', (e) => {
+            if (!dropdown.classList.contains('hidden') && currentSuggestions.length > 0) {
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    activeSuggestionIndex = (activeSuggestionIndex + 1) % currentSuggestions.length;
+                    highlightActiveSuggestion();
+                    return;
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    activeSuggestionIndex = (activeSuggestionIndex - 1 + currentSuggestions.length) % currentSuggestions.length;
+                    highlightActiveSuggestion();
+                    return;
+                } else if (e.key === 'Enter') {
+                    if (activeSuggestionIndex >= 0 && currentSuggestions[activeSuggestionIndex]) {
+                        e.preventDefault();
+                        selectSuggestion(activeSuggestionIndex);
+                        return;
+                    }
+                } else if (e.key === 'Escape') {
                     dropdown.classList.add('hidden');
-                    inputEl.focus();
-                });
+                    return;
+                }
+            }
+        });
+
+        function highlightActiveSuggestion() {
+            dropdown.querySelectorAll('.autocomplete-item').forEach((item, idx) => {
+                if (idx === activeSuggestionIndex) {
+                    item.classList.add('active');
+                    item.scrollIntoView({ block: 'nearest' });
+                } else {
+                    item.classList.remove('active');
+                }
             });
+        }
+
+        function selectSuggestion(index) {
+            if (index < 0 || index >= currentSuggestions.length) return;
+            const chosen = currentSuggestions[index];
+            inputEl.value = `${chosen.artist} - ${chosen.title}`;
+            dropdown.classList.add('hidden');
+            inputEl.focus();
+        }
+
+        dropdown.addEventListener('mousedown', (e) => {
+            const item = e.target.closest('.autocomplete-item');
+            if (item && item.dataset.index !== undefined) {
+                e.preventDefault();
+                selectSuggestion(parseInt(item.dataset.index, 10));
+            }
         });
 
         document.addEventListener('click', (e) => {
@@ -1697,7 +2089,6 @@
     // ==========================================
     // ROUND OVER & RESULTS
     // ==========================================
-
     function handleRoundOver(data) {
         if (MP.roundTimerInterval) {
             clearInterval(MP.roundTimerInterval);
@@ -1731,12 +2122,10 @@
                 </div>
 
                 <div class="reveal-audio-player">
-                    <audio id="mpRevealAudio" src="${data.song.audioPreviewUrl || ''}" preload="auto"></audio>
                     <button type="button" class="reveal-play-btn" id="mpRevealPlayBtn">▶ Écouter le morceau complet</button>
                 </div>
 
                 <div class="mp-results-table-box">
-                    <h3>Classement de la partie</h3>
                     <table class="mp-scoreboard-table">
                         <thead>
                             <tr>
@@ -1832,6 +2221,39 @@
         }
     }
 
+    // Global Keydown shortcuts
+    function handleGlobalKeyDown(e) {
+        const activeEl = document.activeElement;
+        const isTyping = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA');
+
+        if (isTyping) {
+            if (e.key === 'Escape') {
+                activeEl.blur();
+            }
+            return;
+        }
+
+        if (e.code === 'Space' || e.key === ' ') {
+            e.preventDefault();
+            if (typeof window.mpPlaySnippet === 'function') window.mpPlaySnippet();
+            return;
+        }
+
+        if (e.key === 's' || e.key === 'S') {
+            e.preventDefault();
+            const skipBtn = document.getElementById('mpSkipButton');
+            if (skipBtn && !skipBtn.disabled) skipBtn.click();
+            return;
+        }
+
+        if (e.key === '/') {
+            e.preventDefault();
+            const search = document.getElementById('mpSearchInput');
+            if (search && !search.disabled) search.focus();
+            return;
+        }
+    }
+
     function showToast(message, type = 'info') {
         let toastContainer = document.getElementById('mpToastContainer');
         if (!toastContainer) {
@@ -1863,13 +2285,13 @@
     }
 
     window.HeardleMP = {
-        switchGameMode,
         init: () => {
+            loadMpYouTubeAPI();
+            initTransport();
+            setupReturnSoloButton();
+            window.addEventListener('keydown', handleGlobalKeyDown);
+            renderHubView();
             checkUrlParams();
-            const soloBtn = document.getElementById('modeSoloBtn');
-            const mpBtn = document.getElementById('modeMpBtn');
-            if (soloBtn) soloBtn.addEventListener('click', () => switchGameMode('solo'));
-            if (mpBtn) mpBtn.addEventListener('click', () => switchGameMode('multiplayer'));
         }
     };
 

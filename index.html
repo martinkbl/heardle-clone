@@ -1115,13 +1115,9 @@
         <!-- Header with title and icons -->
         <div class="game-header">
             <div class="header-left">
-                <div class="mode-switcher-container">
-                    <button type="button" class="mode-btn active" id="modeSoloBtn">🎮 Solo</button>
-                    <button type="button" class="mode-btn" id="modeMpBtn">
-                        <span class="connection-dot online" id="mpConnectionDot"></span>
-                        👥 Multijoueur
-                    </button>
-                </div>
+                <a href="multiplayer.html" class="mode-btn mode-mp-link" id="openMpBtn" title="Jouer en ligne avec des amis (Ouvre la salle multijoueur)">
+                    👥 Multijoueur <span style="background: #1db954; color: #000; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">NOUVEAU</span>
+                </a>
             </div>
 
             <h1 class="game-title">Heardle Unlimited</h1>
@@ -1228,11 +1224,6 @@
 
                 <button class="play-again-button" id="playAgainButton">Play Again</button>
             </div>
-        </div>
-
-        <!-- Multiplayer game content -->
-        <div class="mp-game-content hidden" id="mpGameContent">
-            <div id="mpDynamicArea" style="width: 100%;"></div>
         </div>
     </div>
 
@@ -2999,8 +2990,51 @@
         }
 
         // ==========================================
-        // Autocomplete Logic
+        // Autocomplete Logic & Multi-Playlist Song Pool
         // ==========================================
+
+        function getAllSearchableSongs() {
+            const seen = new Set();
+            const result = [];
+
+            function addSong(s, priority = 0) {
+                if (!s || !s.title) return;
+                const normA = normalizeStr(s.artist || '');
+                const normT = normalizeStr(s.title || '');
+                const key = `${normA} - ${normT}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    result.push({ ...s, priority });
+                }
+            }
+
+            // 1. Current active playlist songs (highest priority: priority = 10)
+            if (songs && Array.isArray(songs)) {
+                songs.forEach(s => addSong(s, 10));
+            }
+
+            // 2. All other loaded playlists
+            if (playlistsData) {
+                Object.keys(playlistsData).forEach(k => {
+                    const pl = playlistsData[k];
+                    if (pl && Array.isArray(pl.songs)) {
+                        pl.songs.forEach(s => addSong(s, 5));
+                    }
+                });
+            }
+
+            // 3. window.HEARDLE_PLAYLISTS fallback
+            if (window.HEARDLE_PLAYLISTS) {
+                Object.keys(window.HEARDLE_PLAYLISTS).forEach(k => {
+                    const pl = window.HEARDLE_PLAYLISTS[k];
+                    if (pl && Array.isArray(pl.songs)) {
+                        pl.songs.forEach(s => addSong(s, 5));
+                    }
+                });
+            }
+
+            return result;
+        }
 
         function updateAutocomplete() {
             if (gameEnded) {
@@ -3012,46 +3046,53 @@
             const normQuery = normalizeStr(query);
             activeSuggestionIndex = -1;
 
-            if (normQuery.length === 0 || !songs || songs.length === 0) {
+            if (normQuery.length === 0) {
                 hideAutocomplete();
                 return;
             }
 
-            // Filter songs from the active playlist
-            const seen = new Set();
+            const allSongs = getAllSearchableSongs();
+            if (allSongs.length === 0) {
+                hideAutocomplete();
+                return;
+            }
+
+            const queryWords = normQuery.split(' ').filter(w => w.length > 0);
             const matches = [];
 
-            for (const s of songs) {
+            for (const s of allSongs) {
                 const titleNorm = normalizeStr(s.title);
                 const artistNorm = normalizeStr(s.artist);
                 const originalTitleNorm = normalizeStr(s.original_title || '');
                 const fullTextNorm = `${artistNorm} ${titleNorm}`;
 
-                const key = `${artistNorm} - ${titleNorm}`;
-                if (seen.has(key)) continue;
-
                 let score = -1;
-                if (titleNorm.startsWith(normQuery)) {
-                    score = 0; // Highest priority: title starts with query
+
+                if (titleNorm === normQuery) {
+                    score = 1000;
+                } else if (titleNorm.startsWith(normQuery)) {
+                    score = 800;
                 } else if (artistNorm.startsWith(normQuery)) {
-                    score = 1; // High priority: artist starts with query
+                    score = 700;
                 } else if (titleNorm.includes(normQuery)) {
-                    score = 2; // Title contains query
+                    score = 500;
                 } else if (artistNorm.includes(normQuery)) {
-                    score = 3; // Artist contains query
+                    score = 400;
                 } else if (fullTextNorm.includes(normQuery) || originalTitleNorm.includes(normQuery)) {
-                    score = 4; // Full / original title match
+                    score = 300;
+                } else if (queryWords.every(w => fullTextNorm.includes(w) || originalTitleNorm.includes(w))) {
+                    score = 200;
                 }
 
                 if (score !== -1) {
-                    seen.add(key);
+                    score += (s.priority || 0) * 10;
                     matches.push({ song: s, score });
                 }
             }
 
             // Sort by match score then alphabetically
             matches.sort((a, b) => {
-                if (a.score !== b.score) return a.score - b.score;
+                if (a.score !== b.score) return b.score - a.score;
                 return a.song.title.localeCompare(b.song.title);
             });
 
@@ -3369,23 +3410,14 @@
             // Ctrl+Space: Play/Pause even if input is focused
             if ((e.ctrlKey || e.metaKey) && (e.code === 'Space' || e.key === ' ')) {
                 e.preventDefault();
-                const mpGameContent = document.getElementById('mpGameContent');
-                if (mpGameContent && !mpGameContent.classList.contains('hidden')) {
-                    if (typeof window.mpPlaySnippet === 'function') window.mpPlaySnippet();
-                } else {
-                    playAudio();
-                }
+                playAudio();
                 return;
             }
 
             // Ctrl+S: Skip attempt even if input is focused
             if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
                 e.preventDefault();
-                const mpGameContent = document.getElementById('mpGameContent');
-                if (mpGameContent && !mpGameContent.classList.contains('hidden')) {
-                    const mpSkipBtn = document.getElementById('mpSkipButton');
-                    if (mpSkipBtn && !mpSkipBtn.disabled) mpSkipBtn.click();
-                } else if (!gameEnded) {
+                if (!gameEnded) {
                     skipAttempt();
                 }
                 return;
@@ -3403,23 +3435,14 @@
             // Spacebar: Play / Pause toggle
             if (e.code === 'Space' || e.key === ' ') {
                 e.preventDefault();
-                const mpGameContent = document.getElementById('mpGameContent');
-                if (mpGameContent && !mpGameContent.classList.contains('hidden')) {
-                    if (typeof window.mpPlaySnippet === 'function') window.mpPlaySnippet();
-                } else {
-                    playAudio();
-                }
+                playAudio();
                 return;
             }
 
             // 'S' or 's': Skip attempt
             if (e.key === 's' || e.key === 'S') {
                 e.preventDefault();
-                const mpGameContent = document.getElementById('mpGameContent');
-                if (mpGameContent && !mpGameContent.classList.contains('hidden')) {
-                    const mpSkipBtn = document.getElementById('mpSkipButton');
-                    if (mpSkipBtn && !mpSkipBtn.disabled) mpSkipBtn.click();
-                } else if (!gameEnded) {
+                if (!gameEnded) {
                     skipAttempt();
                 }
                 return;
@@ -3428,25 +3451,14 @@
             // 'K' or 'P': Play / Pause toggle
             if (e.key === 'k' || e.key === 'K' || e.key === 'p' || e.key === 'P') {
                 e.preventDefault();
-                const mpGameContent = document.getElementById('mpGameContent');
-                if (mpGameContent && !mpGameContent.classList.contains('hidden')) {
-                    if (typeof window.mpPlaySnippet === 'function') window.mpPlaySnippet();
-                } else {
-                    playAudio();
-                }
+                playAudio();
                 return;
             }
 
             // '/': Focus search input
             if (e.key === '/') {
                 e.preventDefault();
-                const mpGameContent = document.getElementById('mpGameContent');
-                if (mpGameContent && !mpGameContent.classList.contains('hidden')) {
-                    const mpSearch = document.getElementById('mpSearchInput');
-                    if (mpSearch && !mpSearch.disabled) mpSearch.focus();
-                } else {
-                    searchInput.focus();
-                }
+                searchInput.focus();
                 return;
             }
 
@@ -3584,9 +3596,15 @@
                 });
             }
         }
+
+        // Auto-redirect if URL contains multiplayer room params
+        (function checkForMultiplayerRedirect() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('room') || urlParams.has('join')) {
+                window.location.replace('multiplayer.html' + window.location.search);
+            }
+        })();
     </script>
-    <!-- Multiplayer module -->
-    <script src="multiplayer.js"></script>
 </body>
 
 </html>

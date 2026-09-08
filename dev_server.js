@@ -68,7 +68,10 @@ const server = http.createServer(async (req, res) => {
         return matchHandler(req, res);
     }
 
-    let filePath = path.join(__dirname, parsedUrl.pathname === '/' ? 'index.html' : parsedUrl.pathname);
+    let reqPath = parsedUrl.pathname;
+    if (reqPath === '/') reqPath = '/index.html';
+    if (reqPath === '/multiplayer') reqPath = '/multiplayer.html';
+    let filePath = path.join(__dirname, reqPath);
     const ext = path.extname(filePath);
     const contentType = MIME_TYPES[ext] || 'text/plain';
 

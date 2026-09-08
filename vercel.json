@@ -1,0 +1,7 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/multiplayer", "destination": "/multiplayer.html" },
+    { "source": "/api/(.*)", "destination": "/api/$1" }
+  ]
+}
