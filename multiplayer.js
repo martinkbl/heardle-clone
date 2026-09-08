@@ -1270,6 +1270,11 @@
         MP.room = data.room;
         MP.roundDuration = data.duration || 60;
         MP.roundSecondsLeft = MP.roundDuration;
+        MP.currentAttempt = 1;
+
+        if (window.HeardleAudioEngine && data.songAudio) {
+            window.HeardleAudioEngine.cueSong(data.songAudio);
+        }
 
         const container = document.getElementById('mpDynamicArea');
         if (!container) return;
@@ -1361,12 +1366,6 @@
         setupGameplayControls(data.songAudio);
         startCircularTimer(MP.roundDuration);
         updateLiveLeaderboard();
-
-        setTimeout(() => {
-            if (typeof window.mpPlaySnippet === 'function') {
-                window.mpPlaySnippet();
-            }
-        }, 600);
     }
 
     function startCircularTimer(durationSeconds) {
@@ -1455,9 +1454,8 @@
 
     function setupGameplayControls(songAudio) {
         const snippetDurations = [1, 2, 4, 7, 11, 16];
-        let currentAttempt = 1;
+        MP.currentAttempt = 1;
         let isPlaying = false;
-        let snippetTimer = null;
 
         const playBtn = document.getElementById('mpPlayButton');
         const progressBar = document.getElementById('mpProgressBar');
@@ -1468,92 +1466,43 @@
         const skipBtn = document.getElementById('mpSkipButton');
         const submitBtn = document.getElementById('mpSubmitButton');
 
-        let audioPlayer = null;
-        if (songAudio && songAudio.audioPreviewUrl) {
-            audioPlayer = new Audio(songAudio.audioPreviewUrl);
-        } else if (songAudio && songAudio.id) {
-            if (window.player && typeof window.player.cueVideoById === 'function') {
-                try {
-                    window.player.cueVideoById(songAudio.id);
-                } catch (e) {
-                    console.warn('Could not cue YouTube video in MP:', e);
-                }
-            }
+        if (window.HeardleAudioEngine && songAudio) {
+            window.HeardleAudioEngine.cueSong(songAudio);
         }
 
         window.mpPlaySnippet = function () {
             if (isPlaying) {
-                stopSnippet();
+                if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
+                isPlaying = false;
+                if (playBtn) playBtn.textContent = '▶';
+                if (progressBar) progressBar.style.width = '0%';
+                if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
                 return;
             }
 
-            const duration = snippetDurations[currentAttempt - 1];
+            const attempt = Math.min(Math.max(MP.currentAttempt || 1, 1), 6);
+            const duration = snippetDurations[attempt - 1] || 1;
             isPlaying = true;
             if (playBtn) playBtn.textContent = '⏸';
 
-            if (audioPlayer) {
-                audioPlayer.currentTime = 0;
-                audioPlayer.play().catch(e => console.warn('Audio play prevented:', e));
-            } else if (window.player && window.player.seekTo) {
-                try {
-                    window.player.seekTo(0);
-                    window.player.playVideo();
-                } catch (e) {}
+            if (window.HeardleAudioEngine) {
+                window.HeardleAudioEngine.playSnippet(
+                    duration,
+                    function (progress, elapsed) {
+                        if (progressBar) progressBar.style.width = `${progress * 100}%`;
+                        if (currentTimeDisplay) {
+                            currentTimeDisplay.textContent = `0:${Math.floor(elapsed).toString().padStart(2, '0')}`;
+                        }
+                    },
+                    function () {
+                        isPlaying = false;
+                        if (playBtn) playBtn.textContent = '▶';
+                        if (progressBar) progressBar.style.width = '0%';
+                        if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
+                    }
+                );
             }
-
-            animateProgressBar(duration);
-
-            snippetTimer = setTimeout(() => {
-                stopSnippet();
-            }, duration * 1000);
         };
-
-        function stopSnippet() {
-            if (snippetTimer) {
-                clearTimeout(snippetTimer);
-                snippetTimer = null;
-            }
-            isPlaying = false;
-            if (playBtn) playBtn.textContent = '▶';
-            if (audioPlayer) {
-                audioPlayer.pause();
-                audioPlayer.currentTime = 0;
-            }
-            if (window.player && window.player.pauseVideo) {
-                try {
-                    window.player.pauseVideo();
-                    window.player.seekTo(0);
-                } catch (e) {}
-            }
-            if (progressBar) progressBar.style.width = '0%';
-            if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
-        }
-
-        function animateProgressBar(duration) {
-            let start = performance.now();
-            if (progressBar) progressBar.style.width = '0%';
-
-            function step(timestamp) {
-                if (!isPlaying) {
-                    if (progressBar) progressBar.style.width = '0%';
-                    return;
-                }
-
-                const elapsed = (timestamp - start) / 1000;
-                const progress = Math.min(elapsed / duration, 1);
-                if (progressBar) progressBar.style.width = `${progress * 100}%`;
-                if (currentTimeDisplay) {
-                    currentTimeDisplay.textContent = `0:${Math.floor(elapsed).toString().padStart(2, '0')}`;
-                }
-
-                if (progress < 1) {
-                    requestAnimationFrame(step);
-                } else {
-                    if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
-                }
-            }
-            requestAnimationFrame(step);
-        }
 
         if (playBtn) playBtn.addEventListener('click', window.mpPlaySnippet);
 
@@ -1569,11 +1518,23 @@
             const guess = searchInput.value.trim();
             if (!guess) return;
 
+            if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
+            isPlaying = false;
+            if (playBtn) playBtn.textContent = '▶';
+            if (progressBar) progressBar.style.width = '0%';
+            if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
+
             send('SUBMIT_GUESS', { guess: guess });
             searchInput.value = '';
         }
 
         function submitSkip() {
+            if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
+            isPlaying = false;
+            if (playBtn) playBtn.textContent = '▶';
+            if (progressBar) progressBar.style.width = '0%';
+            if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
+
             send('SUBMIT_SKIP');
         }
 
@@ -1619,6 +1580,7 @@
             showToast(`🎉 Bravo ! Trouvé en ${data.guessTime}s (+${data.points} pts)`, 'success');
         } else {
             const attemptIdx = (data.attemptsUsed || 1) - 1;
+            MP.currentAttempt = attemptIdx + 2;
             if (boxes[attemptIdx]) {
                 boxes[attemptIdx].classList.remove('current');
                 boxes[attemptIdx].classList.add('incorrect');
@@ -1649,6 +1611,7 @@
     function handleSkipResult(data) {
         const boxes = document.querySelectorAll('.mp-answer-boxes .answer-box');
         const attemptIdx = (data.attemptsUsed || 1) - 1;
+        MP.currentAttempt = attemptIdx + 2;
 
         if (boxes[attemptIdx]) {
             boxes[attemptIdx].classList.remove('current');
@@ -1829,36 +1792,24 @@
 
     function setupRoundOverEventListeners(song) {
         const playBtn = document.getElementById('mpRevealPlayBtn');
-        const audio = document.getElementById('mpRevealAudio');
+        let isPlayingFull = false;
+
+        if (window.HeardleAudioEngine && song) {
+            window.HeardleAudioEngine.cueSong(song);
+        }
 
         if (playBtn) {
             playBtn.addEventListener('click', () => {
-                if (song && song.audioPreviewUrl && audio) {
-                    if (audio.paused) {
-                        audio.play().then(() => {
-                            playBtn.textContent = '⏸ Pause';
-                        }).catch(e => console.warn(e));
-                    } else {
-                        audio.pause();
-                        playBtn.textContent = '▶ Écouter le morceau complet';
-                    }
-                } else if (window.player && window.player.playVideo) {
-                    if (window.player.getPlayerState && window.player.getPlayerState() === 1) {
-                        window.player.pauseVideo();
-                        playBtn.textContent = '▶ Écouter le morceau complet';
-                    } else {
-                        window.player.seekTo(0);
-                        window.player.playVideo();
-                        playBtn.textContent = '⏸ Pause';
-                    }
+                if (isPlayingFull) {
+                    if (window.HeardleAudioEngine) window.HeardleAudioEngine.pauseFull();
+                    isPlayingFull = false;
+                    playBtn.textContent = '▶ Écouter le morceau complet';
+                } else {
+                    if (window.HeardleAudioEngine) window.HeardleAudioEngine.playFull();
+                    isPlayingFull = true;
+                    playBtn.textContent = '⏸ Pause';
                 }
             });
-
-            if (audio) {
-                audio.addEventListener('ended', () => {
-                    playBtn.textContent = '▶ Écouter le morceau complet';
-                });
-            }
         }
 
         const nextRoundBtn = document.getElementById('mpNextRoundBtn');
@@ -1866,7 +1817,7 @@
             nextRoundBtn.addEventListener('click', () => {
                 nextRoundBtn.disabled = true;
                 nextRoundBtn.textContent = 'Chargement...';
-                if (audio) audio.pause();
+                if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
                 send('NEXT_ROUND');
             });
         }
@@ -1875,7 +1826,7 @@
         if (restartBtn && MP.isHost) {
             restartBtn.addEventListener('click', () => {
                 restartBtn.disabled = true;
-                if (audio) audio.pause();
+                if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
                 send('RESTART_GAME');
             });
         }
