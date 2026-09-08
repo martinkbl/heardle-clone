@@ -6,6 +6,12 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Heardle Unlimited</title>
     <link rel="stylesheet" href="multiplayer.css" />
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>
+        if (typeof Peer === 'undefined') {
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js"><\/script>');
+        }
+    </script>
 
     <style>
         * {

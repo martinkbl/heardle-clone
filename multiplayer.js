@@ -1,7 +1,6 @@
 /**
- * Heardle Unlimited - Multiplayer Client Module
- * Real-time multiplayer rooms, synchronized audio, 60s circular timer,
- * speed scoring with skip penalties, and private room sharing.
+ * Heardle Unlimited - Hybrid Multiplayer Client Module
+ * Supports both WebSocket (Node dev server) and WebRTC PeerJS (Vercel / Static deployments).
  */
 
 (function () {
@@ -9,9 +8,13 @@
 
     // State
     const MP = {
+        transport: null, // 'websocket' | 'webrtc'
         ws: null,
+        peer: null,
+        peerConnections: new Map(), // connId -> DataConnection
+        hostConn: null, // for guests in WebRTC mode
         isConnected: false,
-        playerId: null,
+        playerId: 'p_' + Math.random().toString(36).substring(2, 9),
         room: null,
         isHost: false,
         currentRoundData: null,
@@ -22,7 +25,8 @@
         activeMode: 'solo', // 'solo' | 'multiplayer'
         playerAvatar: '🎧',
         playerName: localStorage.getItem('heardle_mp_name') || '',
-        pendingRoomCodeFromUrl: null
+        pendingRoomCodeFromUrl: null,
+        p2pRoomState: null // in-browser room state when hosting via WebRTC
     };
 
     const AVATARS = ['🎧', '🎵', '🔥', '⚡', '👑', '🚀', '🎸', '🎹', '🦊', '🐯', '💎', '⭐'];
@@ -33,7 +37,6 @@
         const roomCode = urlParams.get('room') || urlParams.get('join');
         if (roomCode) {
             MP.pendingRoomCodeFromUrl = roomCode.toUpperCase().trim();
-            // Automatically switch to multiplayer tab
             setTimeout(() => {
                 switchGameMode('multiplayer');
                 if (MP.pendingRoomCodeFromUrl) {
@@ -45,13 +48,20 @@
         }
     }
 
-    // Connect WebSocket
-    function connectWebSocket(callback) {
-        if (MP.ws && MP.ws.readyState === WebSocket.OPEN) {
+    // Determine initial transport
+    function initTransport(callback) {
+        // If on Vercel or external domain without persistent WS backend, prioritize WebRTC
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+
+        if (!isLocalhost && typeof Peer !== 'undefined') {
+            MP.transport = 'webrtc';
+            MP.isConnected = true;
+            updateConnectionStatus(true);
             if (callback) callback();
             return;
         }
 
+        // Try WebSocket first
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
         const host = window.location.host || 'localhost:3000';
         const wsUrl = `${protocol}//${host}`;
@@ -59,8 +69,23 @@
         try {
             MP.ws = new WebSocket(wsUrl);
 
+            const connectTimeout = setTimeout(() => {
+                if (!MP.isConnected) {
+                    console.log('⚡ WebSocket timeout, switching to WebRTC PeerJS transport...');
+                    if (MP.ws) {
+                        try { MP.ws.close(); } catch (e) {}
+                    }
+                    MP.transport = 'webrtc';
+                    MP.isConnected = true;
+                    updateConnectionStatus(true);
+                    if (callback) callback();
+                }
+            }, 1200);
+
             MP.ws.onopen = () => {
-                console.log('✅ Connected to Multiplayer WebSocket');
+                clearTimeout(connectTimeout);
+                console.log('✅ Connected via WebSocket');
+                MP.transport = 'websocket';
                 MP.isConnected = true;
                 updateConnectionStatus(true);
                 if (callback) callback();
@@ -69,40 +94,730 @@
             MP.ws.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    handleServerMessage(data);
+                    handleIncomingMessage(data);
                 } catch (e) {
                     console.error('Error parsing MP message:', e);
                 }
             };
 
             MP.ws.onclose = () => {
-                console.log('❌ Disconnected from Multiplayer WebSocket');
-                MP.isConnected = false;
-                updateConnectionStatus(false);
+                if (MP.transport === 'websocket') {
+                    MP.isConnected = false;
+                    updateConnectionStatus(false);
+                }
             };
 
             MP.ws.onerror = (err) => {
-                console.warn('WebSocket connection error:', err);
-                MP.isConnected = false;
-                updateConnectionStatus(false);
+                clearTimeout(connectTimeout);
+                console.log('⚡ WebSocket not available, fallback to WebRTC PeerJS...');
+                MP.transport = 'webrtc';
+                MP.isConnected = true;
+                updateConnectionStatus(true);
+                if (callback) callback();
             };
         } catch (e) {
-            console.error('Failed to initialize WebSocket:', e);
-            updateConnectionStatus(false);
+            MP.transport = 'webrtc';
+            MP.isConnected = true;
+            updateConnectionStatus(true);
+            if (callback) callback();
         }
     }
 
     function send(type, payload = {}) {
-        if (MP.ws && MP.ws.readyState === WebSocket.OPEN) {
-            MP.ws.send(JSON.stringify({ type, ...payload }));
+        const message = { type, ...payload };
+
+        if (MP.transport === 'websocket' && MP.ws && MP.ws.readyState === WebSocket.OPEN) {
+            MP.ws.send(JSON.stringify(message));
+        } else if (MP.transport === 'webrtc') {
+            handleWebRTCClientSend(message);
         } else {
-            connectWebSocket(() => {
-                MP.ws.send(JSON.stringify({ type, ...payload }));
+            initTransport(() => {
+                send(type, payload);
             });
         }
     }
 
-    function handleServerMessage(data) {
+    // ==========================================
+    // WEBRTC PEER-TO-PEER ENGINE (FOR VERCEL / STATIC)
+    // ==========================================
+
+    function handleWebRTCClientSend(message) {
+        if (MP.isHost && MP.p2pRoomState) {
+            // Host processes message directly
+            handleP2PHostAction(MP.playerId, message);
+        } else if (MP.hostConn && MP.hostConn.open) {
+            // Guest sends to host
+            MP.hostConn.send(message);
+        } else if (message.type === 'CREATE_ROOM') {
+            initP2PHostRoom(message);
+        } else if (message.type === 'JOIN_ROOM') {
+            initP2PGuestJoin(message);
+        }
+    }
+
+    function generateCode() {
+        const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+        let code = '';
+        for (let i = 0; i < 6; i++) {
+            code += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return code;
+    }
+
+    function getAvailablePlaylistsList() {
+        const plObj = window.HEARDLE_PLAYLISTS || window.playlists || {};
+        const keys = Object.keys(plObj);
+        if (keys.length > 0) {
+            return keys.map(k => ({
+                key: k,
+                name: plObj[k].name || k,
+                count: plObj[k].songs ? plObj[k].songs.length : 0
+            }));
+        }
+        return [
+            { key: 'abdoul', name: 'Abdoul', count: 499 },
+            { key: 'gustave', name: 'Gustave', count: 641 },
+            { key: 'erwan', name: 'Erwan', count: 3198 },
+            { key: 'rayane', name: 'Rayane', count: 2314 },
+            { key: 'anir', name: 'Anir', count: 312 }
+        ];
+    }
+
+    function initP2PHostRoom(data) {
+        showToast('Création du salon en cours...', 'info');
+        const roomCode = generateCode();
+        const peerId = 'heardle-v2-' + roomCode.toLowerCase();
+
+        const btnCreate = document.getElementById('btnCreateRoomSubmit');
+
+        if (typeof Peer === 'undefined') {
+            showToast('Chargement de PeerJS... Veuillez réessayer dans 2 secondes.', 'error');
+            if (btnCreate) {
+                btnCreate.disabled = false;
+                btnCreate.textContent = 'Créer le salon privé 🚀';
+            }
+            return;
+        }
+
+        try {
+            if (MP.peer) {
+                try { MP.peer.destroy(); } catch (e) {}
+            }
+
+            const hostTimeout = setTimeout(() => {
+                if (!MP.p2pRoomState) {
+                    if (btnCreate) {
+                        btnCreate.disabled = false;
+                        btnCreate.textContent = 'Créer le salon privé 🚀';
+                    }
+                    showToast('Délai d\'attente dépassé pour la création du salon. Veuillez réessayer.', 'error');
+                }
+            }, 8000);
+
+            MP.peer = new Peer(peerId, {
+                debug: 1,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
+            });
+
+            MP.peer.on('open', (id) => {
+                clearTimeout(hostTimeout);
+                console.log('✅ P2P Host Room initialized with ID:', id);
+                MP.isHost = true;
+                MP.playerId = 'host_' + Math.random().toString(36).substring(2, 7);
+
+                const player = {
+                    id: MP.playerId,
+                    name: (data.playerName || 'Hôte').trim(),
+                    avatar: data.avatar || MP.playerAvatar,
+                    isHost: true,
+                    score: 0,
+                    roundsWon: 0,
+                    roundState: {
+                        hasGuessed: false,
+                        isCorrect: false,
+                        guessTime: null,
+                        skips: 0,
+                        wrongAttempts: 0,
+                        pointsThisRound: 0,
+                        isFinished: false
+                    }
+                };
+
+                MP.p2pRoomState = {
+                    code: roomCode,
+                    hostId: MP.playerId,
+                    state: 'LOBBY',
+                    playlistKey: data.playlistKey || 'abdoul',
+                    winningRounds: parseInt(data.winningRounds, 10) || 5,
+                    currentRound: 0,
+                    players: new Map([[MP.playerId, player]]),
+                    currentSong: null,
+                    roundStartTime: 0,
+                    roundDuration: 60,
+                    playedSongIds: new Set()
+                };
+
+                MP.room = sanitizeP2PRoom(MP.p2pRoomState);
+                renderLobbyView();
+                showToast(`Salon ${roomCode} créé avec succès !`, 'success');
+            });
+
+            MP.peer.on('connection', (conn) => {
+                console.log('Incoming guest connection:', conn.peer);
+                setupP2PHostConnection(conn);
+            });
+
+            MP.peer.on('error', (err) => {
+                clearTimeout(hostTimeout);
+                console.error('PeerJS Host Error:', err);
+                if (btnCreate) {
+                    btnCreate.disabled = false;
+                    btnCreate.textContent = 'Créer le salon privé 🚀';
+                }
+                if (err.type === 'unavailable-id') {
+                    // Retry with a new code
+                    initP2PHostRoom(data);
+                } else {
+                    showToast('Erreur de connexion P2P : ' + err.message, 'error');
+                }
+            });
+        } catch (e) {
+            console.error('PeerJS init failed:', e);
+            if (btnCreate) {
+                btnCreate.disabled = false;
+                btnCreate.textContent = 'Créer le salon privé 🚀';
+            }
+            showToast('Erreur lors de la création du salon P2P.', 'error');
+        }
+    }
+
+    function setupP2PHostConnection(conn) {
+        let guestId = null;
+
+        conn.on('open', () => {
+            console.log('Data connection opened with guest:', conn.peer);
+        });
+
+        conn.on('data', (data) => {
+            if (data.type === 'JOIN_ROOM') {
+                guestId = 'guest_' + Math.random().toString(36).substring(2, 7);
+                MP.peerConnections.set(guestId, conn);
+
+                const guest = {
+                    id: guestId,
+                    name: (data.playerName || 'Joueur').trim(),
+                    avatar: data.avatar || '🎵',
+                    isHost: false,
+                    score: 0,
+                    roundsWon: 0,
+                    roundState: {
+                        hasGuessed: false,
+                        isCorrect: false,
+                        guessTime: null,
+                        skips: 0,
+                        wrongAttempts: 0,
+                        pointsThisRound: 0,
+                        isFinished: false
+                    }
+                };
+
+                MP.p2pRoomState.players.set(guestId, guest);
+                MP.room = sanitizeP2PRoom(MP.p2pRoomState);
+
+                // Send ROOM_JOINED to guest
+                conn.send({
+                    type: 'ROOM_JOINED',
+                    room: MP.room,
+                    playerId: guestId
+                });
+
+                // Broadcast to all other guests
+                broadcastP2P({
+                    type: 'PLAYER_JOINED',
+                    player: guest,
+                    room: MP.room
+                }, guestId);
+
+                // Update Host UI
+                renderLobbyPlayers();
+                showToast(`👋 ${guest.name} a rejoint le salon !`);
+            } else {
+                handleP2PHostAction(guestId, data);
+            }
+        });
+
+        conn.on('close', () => {
+            if (guestId && MP.p2pRoomState && MP.p2pRoomState.players.has(guestId)) {
+                const leavingPlayer = MP.p2pRoomState.players.get(guestId);
+                MP.p2pRoomState.players.delete(guestId);
+                MP.peerConnections.delete(guestId);
+                MP.room = sanitizeP2PRoom(MP.p2pRoomState);
+
+                broadcastP2P({
+                    type: 'PLAYER_LEFT',
+                    playerId: guestId,
+                    playerName: leavingPlayer ? leavingPlayer.name : 'Un joueur',
+                    room: MP.room
+                });
+
+                renderLobbyPlayers();
+                showToast(`🚪 ${leavingPlayer ? leavingPlayer.name : 'Un joueur'} a quitté.`);
+            }
+        });
+    }
+
+    function initP2PGuestJoin(data) {
+        showToast('Connexion au salon en cours...', 'info');
+        const roomCode = (data.roomCode || '').toUpperCase().trim();
+        const hostPeerId = 'heardle-v2-' + roomCode.toLowerCase();
+        const btnJoin = document.getElementById('btnJoinRoomSubmit');
+
+        if (typeof Peer === 'undefined') {
+            showToast('Chargement de PeerJS... Veuillez réessayer dans 2 secondes.', 'error');
+            if (btnJoin) {
+                btnJoin.disabled = false;
+                btnJoin.textContent = 'Rejoindre la partie 🎮';
+            }
+            return;
+        }
+
+        try {
+            if (MP.peer) {
+                try { MP.peer.destroy(); } catch (e) {}
+            }
+
+            const guestTimeout = setTimeout(() => {
+                if (!MP.room) {
+                    if (btnJoin) {
+                        btnJoin.disabled = false;
+                        btnJoin.textContent = 'Rejoindre la partie 🎮';
+                    }
+                    showToast('Délai d\'attente dépassé. Salon introuvable ou inactif.', 'error');
+                }
+            }, 8000);
+
+            MP.peer = new Peer({
+                debug: 1,
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:global.stun.twilio.com:3478' }
+                    ]
+                }
+            });
+
+            MP.peer.on('open', (myId) => {
+                console.log('Guest peer initialized with ID:', myId);
+                const conn = MP.peer.connect(hostPeerId, { reliable: true });
+                MP.hostConn = conn;
+
+                conn.on('open', () => {
+                    clearTimeout(guestTimeout);
+                    console.log('Connected to Host Peer!');
+                    conn.send({
+                        type: 'JOIN_ROOM',
+                        roomCode: roomCode,
+                        playerName: data.playerName,
+                        avatar: data.avatar
+                    });
+                });
+
+                conn.on('data', (serverMsg) => {
+                    handleIncomingMessage(serverMsg);
+                });
+
+                conn.on('close', () => {
+                    showToast('Déconnecté du salon (l\'hôte a quitté).', 'error');
+                    MP.room = null;
+                    renderHubView();
+                });
+
+                conn.on('error', (err) => {
+                    clearTimeout(guestTimeout);
+                    console.error('Guest connection error:', err);
+                    if (btnJoin) {
+                        btnJoin.disabled = false;
+                        btnJoin.textContent = 'Rejoindre la partie 🎮';
+                    }
+                    showToast('Impossible de rejoindre le salon : ' + err.message, 'error');
+                });
+            });
+
+            MP.peer.on('error', (err) => {
+                clearTimeout(guestTimeout);
+                console.error('PeerJS Guest Error:', err);
+                if (btnJoin) {
+                    btnJoin.disabled = false;
+                    btnJoin.textContent = 'Rejoindre la partie 🎮';
+                }
+                showToast('Erreur : Salon introuvable ou code incorrect.', 'error');
+            });
+        } catch (e) {
+            console.error('Guest join failed:', e);
+            if (btnJoin) {
+                btnJoin.disabled = false;
+                btnJoin.textContent = 'Rejoindre la partie 🎮';
+            }
+            showToast('Erreur lors de la connexion au salon.', 'error');
+        }
+    }
+
+    function broadcastP2P(message, excludePlayerId = null) {
+        MP.peerConnections.forEach((conn, pid) => {
+            if (pid !== excludePlayerId && conn.open) {
+                conn.send(message);
+            }
+        });
+    }
+
+    function getP2PSongs(playlistKey) {
+        if (window.HEARDLE_PLAYLISTS && window.HEARDLE_PLAYLISTS[playlistKey] && window.HEARDLE_PLAYLISTS[playlistKey].songs) {
+            return window.HEARDLE_PLAYLISTS[playlistKey].songs;
+        }
+        if (window.playlists && window.playlists[playlistKey] && window.playlists[playlistKey].songs) {
+            return window.playlists[playlistKey].songs;
+        }
+        if (window.songs && window.songs.length > 0) {
+            return window.songs;
+        }
+        if (window.HEARDLE_SONGS && window.HEARDLE_SONGS.length > 0) {
+            return window.HEARDLE_SONGS;
+        }
+        return [];
+    }
+
+    function normalizeText(str) {
+        if (!str) return '';
+        return str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+    }
+
+    function checkGuess(guess, song) {
+        if (!guess || !song) return false;
+        const cleanGuess = normalizeText(guess);
+        const cleanTitle = normalizeText(song.title);
+        const cleanArtist = normalizeText(song.artist);
+        const cleanOriginal = normalizeText(song.original_title || '');
+
+        if (!cleanGuess) return false;
+        if (cleanGuess === cleanTitle || (cleanTitle && cleanGuess.includes(cleanTitle))) return true;
+        if (cleanOriginal && cleanGuess.includes(cleanOriginal)) return true;
+        if (cleanArtist && cleanTitle && cleanGuess.includes(cleanArtist) && cleanGuess.includes(cleanTitle)) return true;
+        return false;
+    }
+
+    function calcPoints(elapsed, skips, wrongAttempts) {
+        const timeRemaining = Math.max(0, 60 - elapsed);
+        const speedBonus = Math.floor((timeRemaining / 60) * 500);
+        const total = 500 + speedBonus - ((skips || 0) * 100) - ((wrongAttempts || 0) * 50);
+        return Math.max(100, total);
+    }
+
+    function handleP2PHostAction(senderId, data) {
+        const r = MP.p2pRoomState;
+        if (!r) return;
+
+        switch (data.type) {
+            case 'UPDATE_SETTINGS':
+                if (senderId !== r.hostId) return;
+                if (data.playlistKey) r.playlistKey = data.playlistKey;
+                if (data.winningRounds) r.winningRounds = data.winningRounds;
+                MP.room = sanitizeP2PRoom(r);
+                broadcastP2P({ type: 'SETTINGS_UPDATED', room: MP.room });
+                updateLobbySettingsDisplay();
+                break;
+
+            case 'START_GAME':
+            case 'NEXT_ROUND':
+                if (senderId !== r.hostId) return;
+                startP2PRound();
+                break;
+
+            case 'SUBMIT_GUESS': {
+                const player = r.players.get(senderId);
+                if (!player || player.roundState.isFinished || r.state !== 'PLAYING') return;
+
+                const elapsed = (Date.now() - r.roundStartTime) / 1000;
+                const isCorrect = checkGuess(data.guess, r.currentSong);
+
+                if (isCorrect) {
+                    player.roundState.isCorrect = true;
+                    player.roundState.hasGuessed = true;
+                    player.roundState.guessTime = parseFloat(elapsed.toFixed(1));
+                    player.roundState.pointsThisRound = calcPoints(elapsed, player.roundState.skips, player.roundState.wrongAttempts);
+                    player.roundState.isFinished = true;
+                    player.score += player.roundState.pointsThisRound;
+
+                    const resultMsg = {
+                        type: 'GUESS_RESULT',
+                        isCorrect: true,
+                        points: player.roundState.pointsThisRound,
+                        guessTime: player.roundState.guessTime,
+                        guess: data.guess
+                    };
+
+                    if (senderId === MP.playerId) {
+                        handleIncomingMessage(resultMsg);
+                    } else if (MP.peerConnections.has(senderId)) {
+                        MP.peerConnections.get(senderId).send(resultMsg);
+                    }
+
+                    MP.room = sanitizeP2PRoom(r);
+                    const notif = {
+                        type: 'PLAYER_GUESSED',
+                        playerId: player.id,
+                        playerName: player.name,
+                        guessTime: player.roundState.guessTime,
+                        points: player.roundState.pointsThisRound,
+                        room: MP.room
+                    };
+
+                    broadcastP2P(notif, senderId);
+                    if (senderId !== MP.playerId) handleIncomingMessage(notif);
+
+                    checkP2PAllFinished();
+                } else {
+                    player.roundState.wrongAttempts += 1;
+                    const totalAttempts = player.roundState.skips + player.roundState.wrongAttempts;
+                    if (totalAttempts >= 6) player.roundState.isFinished = true;
+
+                    const resultMsg = {
+                        type: 'GUESS_RESULT',
+                        isCorrect: false,
+                        attemptsUsed: totalAttempts,
+                        isFinished: player.roundState.isFinished,
+                        guess: data.guess
+                    };
+
+                    if (senderId === MP.playerId) {
+                        handleIncomingMessage(resultMsg);
+                    } else if (MP.peerConnections.has(senderId)) {
+                        MP.peerConnections.get(senderId).send(resultMsg);
+                    }
+
+                    MP.room = sanitizeP2PRoom(r);
+                    const notif = {
+                        type: 'PLAYER_ATTEMPT',
+                        playerId: player.id,
+                        attemptsUsed: totalAttempts,
+                        isFinished: player.roundState.isFinished,
+                        room: MP.room
+                    };
+
+                    broadcastP2P(notif, senderId);
+                    if (senderId !== MP.playerId) handleIncomingMessage(notif);
+
+                    if (player.roundState.isFinished) checkP2PAllFinished();
+                }
+                break;
+            }
+
+            case 'SUBMIT_SKIP': {
+                const player = r.players.get(senderId);
+                if (!player || player.roundState.isFinished || r.state !== 'PLAYING') return;
+
+                player.roundState.skips += 1;
+                const totalAttempts = player.roundState.skips + player.roundState.wrongAttempts;
+                if (totalAttempts >= 6) player.roundState.isFinished = true;
+
+                const resultMsg = {
+                    type: 'SKIP_RESULT',
+                    skips: player.roundState.skips,
+                    attemptsUsed: totalAttempts,
+                    isFinished: player.roundState.isFinished
+                };
+
+                if (senderId === MP.playerId) {
+                    handleIncomingMessage(resultMsg);
+                } else if (MP.peerConnections.has(senderId)) {
+                    MP.peerConnections.get(senderId).send(resultMsg);
+                }
+
+                MP.room = sanitizeP2PRoom(r);
+                const notif = {
+                    type: 'PLAYER_SKIPPED',
+                    playerId: player.id,
+                    skips: player.roundState.skips,
+                    attemptsUsed: totalAttempts,
+                    isFinished: player.roundState.isFinished,
+                    room: MP.room
+                };
+
+                broadcastP2P(notif, senderId);
+                if (senderId !== MP.playerId) handleIncomingMessage(notif);
+
+                if (player.roundState.isFinished) checkP2PAllFinished();
+                break;
+            }
+
+            case 'RESTART_GAME':
+                if (senderId !== r.hostId) return;
+                r.state = 'LOBBY';
+                r.currentRound = 0;
+                r.playedSongIds.clear();
+                r.players.forEach(p => {
+                    p.score = 0;
+                    p.roundsWon = 0;
+                    p.roundState = { hasGuessed: false, isCorrect: false, guessTime: null, skips: 0, wrongAttempts: 0, pointsThisRound: 0, isFinished: false };
+                });
+                MP.room = sanitizeP2PRoom(r);
+                broadcastP2P({ type: 'GAME_RESTARTED', room: MP.room });
+                renderLobbyView();
+                break;
+        }
+    }
+
+    function startP2PRound() {
+        const r = MP.p2pRoomState;
+        const songPool = getP2PSongs(r.playlistKey);
+
+        if (!songPool || songPool.length === 0) {
+            showToast('Aucun son trouvé dans cette playlist.', 'error');
+            return;
+        }
+
+        let available = songPool.filter(s => s && s.id && !r.playedSongIds.has(s.id));
+        if (available.length === 0) {
+            r.playedSongIds.clear();
+            available = songPool;
+        }
+
+        const song = available[Math.floor(Math.random() * available.length)];
+        r.currentSong = song;
+        if (song && song.id) r.playedSongIds.add(song.id);
+
+        r.currentRound += 1;
+        r.state = 'PLAYING';
+        r.roundStartTime = Date.now();
+        r.roundDuration = 60;
+
+        r.players.forEach(p => {
+            p.roundState = {
+                hasGuessed: false,
+                isCorrect: false,
+                guessTime: null,
+                skips: 0,
+                wrongAttempts: 0,
+                pointsThisRound: 0,
+                isFinished: false
+            };
+        });
+
+        MP.room = sanitizeP2PRoom(r);
+
+        const roundStartMsg = {
+            type: 'ROUND_START',
+            round: r.currentRound,
+            winningRounds: r.winningRounds,
+            duration: r.roundDuration,
+            songAudio: {
+                id: song.id,
+                audioPreviewUrl: song.audioPreviewUrl || null
+            },
+            room: MP.room
+        };
+
+        broadcastP2P(roundStartMsg);
+        handleIncomingMessage(roundStartMsg); // Run on Host
+
+        if (r.roundTimer) clearTimeout(r.roundTimer);
+        r.roundTimer = setTimeout(() => {
+            endP2PRound('TIME_UP');
+        }, (r.roundDuration + 1) * 1000);
+    }
+
+    function checkP2PAllFinished() {
+        const r = MP.p2pRoomState;
+        if (!r || r.state !== 'PLAYING') return;
+
+        let allFinished = true;
+        r.players.forEach(p => {
+            if (!p.roundState.isFinished) allFinished = false;
+        });
+
+        if (allFinished) {
+            setTimeout(() => { endP2PRound('ALL_FINISHED'); }, 800);
+        }
+    }
+
+    function endP2PRound(reason) {
+        const r = MP.p2pRoomState;
+        if (!r || r.state !== 'PLAYING') return;
+        if (r.roundTimer) {
+            clearTimeout(r.roundTimer);
+            r.roundTimer = null;
+        }
+
+        r.state = 'ROUND_OVER';
+
+        let roundWinner = null;
+        let fastestTime = Infinity;
+        r.players.forEach(p => {
+            if (p.roundState.isCorrect && p.roundState.guessTime < fastestTime) {
+                fastestTime = p.roundState.guessTime;
+                roundWinner = p;
+            }
+        });
+
+        if (roundWinner) roundWinner.roundsWon += 1;
+
+        let matchWinner = null;
+        r.players.forEach(p => {
+            if (p.roundsWon >= r.winningRounds) {
+                if (!matchWinner || p.score > matchWinner.score) matchWinner = p;
+            }
+        });
+
+        if (matchWinner) r.state = 'MATCH_OVER';
+
+        MP.room = sanitizeP2PRoom(r);
+
+        const roundOverMsg = {
+            type: 'ROUND_OVER',
+            reason: reason,
+            song: {
+                id: r.currentSong.id,
+                title: r.currentSong.title,
+                artist: r.currentSong.artist,
+                original_title: r.currentSong.original_title,
+                thumbnail: r.currentSong.thumbnail,
+                audioPreviewUrl: r.currentSong.audioPreviewUrl || null
+            },
+            roundWinner: roundWinner,
+            matchWinner: matchWinner,
+            room: MP.room
+        };
+
+        broadcastP2P(roundOverMsg);
+        handleIncomingMessage(roundOverMsg); // Run on Host
+    }
+
+    function sanitizeP2PRoom(r) {
+        const pl = (window.HEARDLE_PLAYLISTS && window.HEARDLE_PLAYLISTS[r.playlistKey]) 
+            || (window.playlists && window.playlists[r.playlistKey]) 
+            || null;
+        return {
+            code: r.code,
+            hostId: r.hostId,
+            state: r.state,
+            playlistKey: r.playlistKey,
+            playlistName: pl ? (pl.name || r.playlistKey) : r.playlistKey,
+            winningRounds: r.winningRounds,
+            currentRound: r.currentRound,
+            roundDuration: r.roundDuration,
+            players: Array.from(r.players.values())
+        };
+    }
+
+    // ==========================================
+    // UI DISPATCHER & EVENT HANDLERS
+    // ==========================================
+
+    function handleIncomingMessage(data) {
         const { type } = data;
 
         switch (type) {
@@ -184,11 +899,10 @@
         const dot = document.getElementById('mpConnectionDot');
         if (dot) {
             dot.className = connected ? 'connection-dot online' : 'connection-dot offline';
-            dot.title = connected ? 'Connecté au serveur' : 'Déconnecté';
+            dot.title = connected ? (MP.transport === 'webrtc' ? 'Mode P2P WebRTC' : 'Serveur WebSocket') : 'Déconnecté';
         }
     }
 
-    // Switch between Solo and Multiplayer modes
     function switchGameMode(mode) {
         MP.activeMode = mode;
         const soloContainer = document.getElementById('soloGameContent');
@@ -202,7 +916,7 @@
             if (soloTabBtn) soloTabBtn.classList.remove('active');
             if (mpTabBtn) mpTabBtn.classList.add('active');
 
-            connectWebSocket();
+            initTransport();
 
             if (!MP.room) {
                 renderHubView();
@@ -217,7 +931,7 @@
         }
     }
 
-    // Render Multiplayer Main Hub (Create / Join Tabs)
+    // Render Hub View
     function renderHubView() {
         const container = document.getElementById('mpDynamicArea');
         if (!container) return;
@@ -257,11 +971,9 @@
                     <div class="mp-form-group">
                         <label for="mpPlaylistSelect">🎵 Playlist à jouer</label>
                         <select id="mpPlaylistSelect" class="mp-select">
-                            <option value="abdoul">Abdoul (499 sons)</option>
-                            <option value="gustave">Gustave (641 sons)</option>
-                            <option value="erwan">Erwan (3198 sons)</option>
-                            <option value="rayane">Rayane (2314 sons)</option>
-                            <option value="anir">Anir (312 sons)</option>
+                            ${getAvailablePlaylistsList().map(pl => `
+                                <option value="${pl.key}">${escapeHtml(pl.name)} (${pl.count} sons)</option>
+                            `).join('')}
                         </select>
                     </div>
 
@@ -342,6 +1054,9 @@
                 const playlistKey = document.getElementById('mpPlaylistSelect')?.value || 'abdoul';
                 const winningRounds = parseInt(document.getElementById('mpWinningRoundsSelect')?.value, 10) || 5;
 
+                btnCreate.disabled = true;
+                btnCreate.textContent = 'Création en cours...';
+
                 send('CREATE_ROOM', {
                     playerName: name,
                     avatar: MP.playerAvatar,
@@ -363,6 +1078,9 @@
                     showToast('Veuillez saisir un code de salon valide.', 'error');
                     return;
                 }
+
+                btnJoin.disabled = true;
+                btnJoin.textContent = 'Connexion...';
 
                 send('JOIN_ROOM', {
                     roomCode: code,
@@ -387,12 +1105,11 @@
         document.getElementById('panelCreateRoom')?.classList.add('hidden');
     }
 
-    // Render Room Lobby
+    // Render Lobby View
     function renderLobbyView() {
         const container = document.getElementById('mpDynamicArea');
         if (!container || !MP.room) return;
 
-        // Form full shareable URL with site domain
         const baseUrl = window.location.origin.includes('localhost') 
             ? window.location.origin 
             : (window.location.origin || 'https://heardle-clone-delta.vercel.app');
@@ -418,11 +1135,9 @@
                         <span class="setting-label">🎵 Playlist</span>
                         ${MP.isHost ? `
                             <select id="mpLobbyPlaylistSelect" class="mp-select compact">
-                                <option value="abdoul" ${MP.room.playlistKey === 'abdoul' ? 'selected' : ''}>Abdoul</option>
-                                <option value="gustave" ${MP.room.playlistKey === 'gustave' ? 'selected' : ''}>Gustave</option>
-                                <option value="erwan" ${MP.room.playlistKey === 'erwan' ? 'selected' : ''}>Erwan</option>
-                                <option value="rayane" ${MP.room.playlistKey === 'rayane' ? 'selected' : ''}>Rayane</option>
-                                <option value="anir" ${MP.room.playlistKey === 'anir' ? 'selected' : ''}>Anir</option>
+                                ${getAvailablePlaylistsList().map(pl => `
+                                    <option value="${pl.key}" ${MP.room.playlistKey === pl.key ? 'selected' : ''}>${escapeHtml(pl.name)}</option>
+                                `).join('')}
                             </select>
                         ` : `
                             <span class="setting-val">${escapeHtml(MP.room.playlistName || 'Abdoul')}</span>
@@ -445,9 +1160,7 @@
 
                 <div class="mp-lobby-players-section">
                     <h3>Joueurs connectés (<span id="mpPlayerCount">${MP.room.players.length}</span>/12)</h3>
-                    <div class="mp-players-grid" id="mpLobbyPlayersGrid">
-                        <!-- Rendered by renderLobbyPlayers() -->
-                    </div>
+                    <div class="mp-players-grid" id="mpLobbyPlayersGrid"></div>
                 </div>
 
                 <div class="mp-lobby-footer">
@@ -549,7 +1262,7 @@
     }
 
     // ==========================================
-    // IN-GAME MULTIPLAYER ROUND HANDLING
+    // IN-GAME ROUND & CIRCULAR TIMER
     // ==========================================
 
     function handleRoundStart(data) {
@@ -561,16 +1274,13 @@
         const container = document.getElementById('mpDynamicArea');
         if (!container) return;
 
-        // Render In-Game Multiplayer Layout
         container.innerHTML = `
             <div class="mp-gameplay-container">
-                <!-- Top Header: Round info & Circular Timer -->
                 <div class="mp-gameplay-header">
                     <div class="mp-round-badge">
                         Manche <span class="highlight">${data.round}</span> • Premier à <span class="highlight">${data.winningRounds}</span> ⭐
                     </div>
 
-                    <!-- Circular 60s SVG Timer -->
                     <div class="circular-timer-container">
                         <svg class="circular-timer-svg" viewBox="0 0 100 100">
                             <circle class="timer-bg-circle" cx="50" cy="50" r="44"></circle>
@@ -587,9 +1297,7 @@
                     </div>
                 </div>
 
-                <!-- Main Arena: Center Game Board & Right Live Leaderboard -->
                 <div class="mp-game-arena">
-                    <!-- Audio Player & Guess Bars Area -->
                     <div class="mp-player-board">
                         <div class="mp-game-stats">
                             <span>Tentative: <span id="mpCurrentAttempt">1</span>/6</span>
@@ -597,7 +1305,6 @@
                             <span id="mpSongSource">Source: Multijoueur</span>
                         </div>
 
-                        <!-- 6 Answer Guess Boxes -->
                         <div class="answer-boxes mp-answer-boxes" id="mpAnswerBoxes">
                             <div class="answer-box current" data-attempt="1"><div class="attempt-number">1</div></div>
                             <div class="answer-box" data-attempt="2"><div class="attempt-number">2</div></div>
@@ -607,7 +1314,6 @@
                             <div class="answer-box" data-attempt="6"><div class="attempt-number">6</div></div>
                         </div>
 
-                        <!-- Audio Controls -->
                         <p class="instruction-text" id="mpInstructionText">Écoutez et devinez le titre ou l'artiste !</p>
 
                         <div class="audio-player mp-audio-player">
@@ -622,7 +1328,6 @@
                             <button type="button" class="play-button" id="mpPlayButton">▶</button>
                         </div>
 
-                        <!-- Search & Guess Controls -->
                         <div class="search-container mp-search-container">
                             <input type="text" class="search-input" placeholder="Connaissez-vous le son ? Recherchez ici..." id="mpSearchInput" autocomplete="off" />
                             <button type="button" class="clear-button" id="mpClearButton">✕</button>
@@ -634,7 +1339,6 @@
                             <button type="button" class="action-button submit-button" id="mpSubmitButton">VALIDER</button>
                         </div>
 
-                        <!-- Finished Banner if solved -->
                         <div class="mp-solved-banner hidden" id="mpSolvedBanner">
                             <div class="solved-icon">🎉</div>
                             <div class="solved-text">
@@ -644,14 +1348,11 @@
                         </div>
                     </div>
 
-                    <!-- Live Leaderboard Sidebar -->
                     <div class="mp-live-scoreboard">
                         <div class="scoreboard-header">
                             <h4>Classement en direct</h4>
                         </div>
-                        <div class="scoreboard-list" id="mpLiveScoreboardList">
-                            <!-- Populated dynamically -->
-                        </div>
+                        <div class="scoreboard-list" id="mpLiveScoreboardList"></div>
                     </div>
                 </div>
             </div>
@@ -661,7 +1362,6 @@
         startCircularTimer(MP.roundDuration);
         updateLiveLeaderboard();
 
-        // Start initial audio playback synchronized
         setTimeout(() => {
             if (typeof window.mpPlaySnippet === 'function') {
                 window.mpPlaySnippet();
@@ -674,7 +1374,7 @@
 
         const circle = document.getElementById('mpTimerCircle');
         const numberSpan = document.getElementById('mpTimerNumber');
-        const totalCircumference = 2 * Math.PI * 44; // r=44 => ~276.46
+        const totalCircumference = 2 * Math.PI * 44;
 
         if (circle) {
             circle.style.strokeDasharray = `${totalCircumference}`;
@@ -695,15 +1395,14 @@
                 const offset = totalCircumference * (1 - fraction);
                 circle.style.strokeDashoffset = `${offset}`;
 
-                // Color transitions
                 if (remaining <= 10) {
-                    circle.style.stroke = '#ef4444'; // Red urgent
+                    circle.style.stroke = '#ef4444';
                     circle.classList.add('urgent-pulse');
                 } else if (remaining <= 25) {
-                    circle.style.stroke = '#f59e0b'; // Amber warning
+                    circle.style.stroke = '#f59e0b';
                     circle.classList.remove('urgent-pulse');
                 } else {
-                    circle.style.stroke = '#1db954'; // Spotify Green
+                    circle.style.stroke = '#1db954';
                     circle.classList.remove('urgent-pulse');
                 }
             }
@@ -719,7 +1418,6 @@
         const list = document.getElementById('mpLiveScoreboardList');
         if (!list || !MP.room) return;
 
-        // Sort by total score descending
         const sortedPlayers = [...MP.room.players].sort((a, b) => b.score - a.score);
 
         list.innerHTML = sortedPlayers.map((p, idx) => {
@@ -734,7 +1432,6 @@
                 statusHtml = `<span class="status-tag listening">🎧 Écoute...</span>`;
             }
 
-            // Star wins
             const stars = '⭐'.repeat(p.roundsWon || 0);
 
             return `
@@ -756,7 +1453,6 @@
         }).join('');
     }
 
-    // Controls setup during active round
     function setupGameplayControls(songAudio) {
         const snippetDurations = [1, 2, 4, 7, 11, 16];
         let currentAttempt = 1;
@@ -771,14 +1467,18 @@
         const clearBtn = document.getElementById('mpClearButton');
         const skipBtn = document.getElementById('mpSkipButton');
         const submitBtn = document.getElementById('mpSubmitButton');
-        const currentAttemptDisplay = document.getElementById('mpCurrentAttempt');
-        const clipLengthDisplay = document.getElementById('mpClipLength');
-        const instructionText = document.getElementById('mpInstructionText');
 
-        // Prepare audio element
         let audioPlayer = null;
-        if (songAudio.audioPreviewUrl) {
+        if (songAudio && songAudio.audioPreviewUrl) {
             audioPlayer = new Audio(songAudio.audioPreviewUrl);
+        } else if (songAudio && songAudio.id) {
+            if (window.player && typeof window.player.cueVideoById === 'function') {
+                try {
+                    window.player.cueVideoById(songAudio.id);
+                } catch (e) {
+                    console.warn('Could not cue YouTube video in MP:', e);
+                }
+            }
         }
 
         window.mpPlaySnippet = function () {
@@ -794,12 +1494,11 @@
             if (audioPlayer) {
                 audioPlayer.currentTime = 0;
                 audioPlayer.play().catch(e => console.warn('Audio play prevented:', e));
-            } else if (window.YT && window.YT.Player) {
-                // If using YouTube player
-                if (typeof window.player !== 'undefined' && window.player && window.player.seekTo) {
+            } else if (window.player && window.player.seekTo) {
+                try {
                     window.player.seekTo(0);
                     window.player.playVideo();
-                }
+                } catch (e) {}
             }
 
             animateProgressBar(duration);
@@ -820,9 +1519,11 @@
                 audioPlayer.pause();
                 audioPlayer.currentTime = 0;
             }
-            if (typeof window.player !== 'undefined' && window.player && window.player.pauseVideo) {
-                window.player.pauseVideo();
-                window.player.seekTo(0);
+            if (window.player && window.player.pauseVideo) {
+                try {
+                    window.player.pauseVideo();
+                    window.player.seekTo(0);
+                } catch (e) {}
             }
             if (progressBar) progressBar.style.width = '0%';
             if (currentTimeDisplay) currentTimeDisplay.textContent = '0:00';
@@ -854,9 +1555,7 @@
             requestAnimationFrame(step);
         }
 
-        if (playBtn) {
-            playBtn.addEventListener('click', window.mpPlaySnippet);
-        }
+        if (playBtn) playBtn.addEventListener('click', window.mpPlaySnippet);
 
         if (clearBtn && searchInput) {
             clearBtn.addEventListener('click', () => {
@@ -865,7 +1564,6 @@
             });
         }
 
-        // Handle Guess Submission
         function submitGuess() {
             if (!searchInput) return;
             const guess = searchInput.value.trim();
@@ -875,7 +1573,6 @@
             searchInput.value = '';
         }
 
-        // Handle Skip
         function submitSkip() {
             send('SUBMIT_SKIP');
         }
@@ -889,7 +1586,6 @@
             });
         }
 
-        // Autocomplete setup
         setupAutocomplete(searchInput);
     }
 
@@ -902,7 +1598,6 @@
         const solvedDetails = document.getElementById('mpSolvedDetails');
 
         if (data.isCorrect) {
-            // Find current attempt box
             const currentBox = document.querySelector('.mp-answer-boxes .answer-box.current');
             if (currentBox) {
                 currentBox.classList.remove('current');
@@ -923,7 +1618,6 @@
 
             showToast(`🎉 Bravo ! Trouvé en ${data.guessTime}s (+${data.points} pts)`, 'success');
         } else {
-            // Mark wrong attempt
             const attemptIdx = (data.attemptsUsed || 1) - 1;
             if (boxes[attemptIdx]) {
                 boxes[attemptIdx].classList.remove('current');
@@ -931,7 +1625,6 @@
                 boxes[attemptIdx].textContent = `❌ ${data.guess || 'INCORRECT'}`;
             }
 
-            // Move current to next box
             if (boxes[attemptIdx + 1] && !data.isFinished) {
                 boxes[attemptIdx + 1].classList.add('current');
                 const attemptSpan = document.getElementById('mpCurrentAttempt');
@@ -985,7 +1678,6 @@
         }
     }
 
-    // Autocomplete setup helper using window.songs
     function setupAutocomplete(inputEl) {
         if (!inputEl) return;
         const dropdown = document.getElementById('mpAutocompleteDropdown');
@@ -999,7 +1691,6 @@
                 return;
             }
 
-            // Get song pool from window.songs or playlists
             const songPool = window.songs || window.HEARDLE_SONGS || [];
             const matches = songPool.filter(s => {
                 if (!s) return false;
@@ -1041,7 +1732,7 @@
     }
 
     // ==========================================
-    // ROUND OVER & MATCH OVER SCREENS
+    // ROUND OVER & RESULTS
     // ==========================================
 
     function handleRoundOver(data) {
@@ -1056,7 +1747,6 @@
 
         const isMatchOver = (data.room.state === 'MATCH_OVER');
 
-        // Render Round Over Screen
         container.innerHTML = `
             <div class="mp-round-over-card">
                 <div class="round-over-header">
@@ -1068,7 +1758,6 @@
                     </p>
                 </div>
 
-                <!-- Song Details Revealed -->
                 <div class="mp-song-reveal-box">
                     <img src="${data.song.thumbnail || 'https://i.ytimg.com/vi/EUww3qVQVe4/hqdefault.jpg'}" alt="Cover" class="reveal-cover" />
                     <div class="reveal-meta">
@@ -1078,13 +1767,11 @@
                     </div>
                 </div>
 
-                <!-- Full Track Audio Player -->
                 <div class="reveal-audio-player">
                     <audio id="mpRevealAudio" src="${data.song.audioPreviewUrl || ''}" preload="auto"></audio>
                     <button type="button" class="reveal-play-btn" id="mpRevealPlayBtn">▶ Écouter le morceau complet</button>
                 </div>
 
-                <!-- Round & Total Scoreboard -->
                 <div class="mp-results-table-box">
                     <h3>Classement de la partie</h3>
                     <table class="mp-scoreboard-table">
@@ -1115,7 +1802,6 @@
                     </table>
                 </div>
 
-                <!-- Footer Host Controls -->
                 <div class="mp-round-over-footer">
                     ${isMatchOver ? `
                         ${MP.isHost ? `
@@ -1145,21 +1831,34 @@
         const playBtn = document.getElementById('mpRevealPlayBtn');
         const audio = document.getElementById('mpRevealAudio');
 
-        if (playBtn && audio && song.audioPreviewUrl) {
+        if (playBtn) {
             playBtn.addEventListener('click', () => {
-                if (audio.paused) {
-                    audio.play().then(() => {
+                if (song && song.audioPreviewUrl && audio) {
+                    if (audio.paused) {
+                        audio.play().then(() => {
+                            playBtn.textContent = '⏸ Pause';
+                        }).catch(e => console.warn(e));
+                    } else {
+                        audio.pause();
+                        playBtn.textContent = '▶ Écouter le morceau complet';
+                    }
+                } else if (window.player && window.player.playVideo) {
+                    if (window.player.getPlayerState && window.player.getPlayerState() === 1) {
+                        window.player.pauseVideo();
+                        playBtn.textContent = '▶ Écouter le morceau complet';
+                    } else {
+                        window.player.seekTo(0);
+                        window.player.playVideo();
                         playBtn.textContent = '⏸ Pause';
-                    }).catch(e => console.warn(e));
-                } else {
-                    audio.pause();
-                    playBtn.textContent = '▶ Écouter le morceau complet';
+                    }
                 }
             });
 
-            audio.addEventListener('ended', () => {
-                playBtn.textContent = '▶ Écouter le morceau complet';
-            });
+            if (audio) {
+                audio.addEventListener('ended', () => {
+                    playBtn.textContent = '▶ Écouter le morceau complet';
+                });
+            }
         }
 
         const nextRoundBtn = document.getElementById('mpNextRoundBtn');
@@ -1182,7 +1881,6 @@
         }
     }
 
-    // Helper Toast notifications
     function showToast(message, type = 'info') {
         let toastContainer = document.getElementById('mpToastContainer');
         if (!toastContainer) {
@@ -1213,12 +1911,10 @@
             .replace(/'/g, '&#039;');
     }
 
-    // Export global helpers
     window.HeardleMP = {
         switchGameMode,
         init: () => {
             checkUrlParams();
-            // Setup Tab Switcher buttons
             const soloBtn = document.getElementById('modeSoloBtn');
             const mpBtn = document.getElementById('modeMpBtn');
             if (soloBtn) soloBtn.addEventListener('click', () => switchGameMode('solo'));
@@ -1226,7 +1922,6 @@
         }
     };
 
-    // Auto-init on page load
     window.addEventListener('DOMContentLoaded', () => {
         window.HeardleMP.init();
     });
