@@ -83,12 +83,12 @@
             mpYtPlayer = new YT.Player('gameAudio', {
                 height: '100%',
                 width: '100%',
-                videoId: 'OYOcnrVE4Gc',
                 playerVars: {
                     'playsinline': 1,
                     'controls': 0,
                     'disablekb': 1,
                     'fs': 0,
+                    'autoplay': 0,
                     'origin': window.location.origin
                 },
                 events: {
@@ -117,9 +117,9 @@
         checkInterval: null,
 
         cueSong: function (song) {
-            if (!song) return;
             this.stop();
-            this.currentSong = song;
+            this.currentSong = song || null;
+            if (!song) return;
 
             if (song.audioPreviewUrl) {
                 this.activeType = 'preview';
@@ -977,8 +977,13 @@
 
             case 'RESTART_GAME':
                 if (senderId !== r.hostId) return;
+                if (window.HeardleAudioEngine) {
+                    window.HeardleAudioEngine.stop();
+                    window.HeardleAudioEngine.currentSong = null;
+                }
                 r.state = 'LOBBY';
                 r.currentRound = 0;
+                r.currentSong = null;
                 r.playedSongIds.clear();
                 r.players.forEach(p => {
                     p.score = 0;
@@ -1204,6 +1209,15 @@
                 break;
 
             case 'GAME_RESTARTED':
+                if (window.HeardleAudioEngine) {
+                    window.HeardleAudioEngine.stop();
+                    window.HeardleAudioEngine.currentSong = null;
+                }
+                if (MP.roundTimerInterval) {
+                    clearInterval(MP.roundTimerInterval);
+                    MP.roundTimerInterval = null;
+                }
+                MP.currentRoundData = null;
                 MP.room = data.room;
                 renderLobbyView();
                 showToast('🔄 La partie a été réinitialisée par l\'hôte.');
@@ -1228,6 +1242,10 @@
 
     // Render Hub View
     function renderHubView() {
+        if (window.HeardleAudioEngine) {
+            window.HeardleAudioEngine.stop();
+            window.HeardleAudioEngine.currentSong = null;
+        }
         const container = document.getElementById('mpDynamicArea');
         if (!container) return;
 
@@ -1402,6 +1420,10 @@
 
     // Render Lobby View
     function renderLobbyView() {
+        if (window.HeardleAudioEngine) {
+            window.HeardleAudioEngine.stop();
+            window.HeardleAudioEngine.currentSong = null;
+        }
         const container = document.getElementById('mpDynamicArea');
         if (!container || !MP.room) return;
 
@@ -1627,14 +1649,21 @@
                         </div>
 
                         <div class="search-container">
-                            <input type="text" class="search-input" placeholder="Titre ou artiste... (Appuyez sur /)" id="mpSearchInput" autocomplete="off" spellcheck="false" />
+                            <input type="text" class="search-input" placeholder="Titre ou artiste... (Touche D pour chercher)" id="mpSearchInput" autocomplete="off" spellcheck="false" />
                             <button type="button" class="clear-button" id="mpClearButton">✕</button>
                             <div class="autocomplete-dropdown hidden" id="mpAutocompleteDropdown"></div>
                         </div>
 
                         <div class="action-buttons">
-                            <button type="button" class="action-button skip-button" id="mpSkipButton">SKIP (+1s)</button>
-                            <button type="button" class="action-button submit-button" id="mpSubmitButton">VALIDER</button>
+                            <button type="button" class="action-button skip-button" id="mpSkipButton" title="Passer la tentative (Touche S)">SKIP (+1s)</button>
+                            <button type="button" class="action-button submit-button" id="mpSubmitButton" title="Valider la réponse (Entrée)">VALIDER</button>
+                        </div>
+
+                        <!-- Shortcuts legend matching index.html -->
+                        <div class="shortcuts-legend" style="display: flex; justify-content: center; gap: 14px; font-size: 12px; color: #888; margin-top: 10px;">
+                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">Space</kbd> Play/Pause</span>
+                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">S</kbd> Passer</span>
+                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">D</kbd> Recherche</span>
                         </div>
 
                         <div class="mp-solved-banner hidden" id="mpSolvedBanner">
@@ -2215,7 +2244,10 @@
         if (restartBtn && MP.isHost) {
             restartBtn.addEventListener('click', () => {
                 restartBtn.disabled = true;
-                if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
+                if (window.HeardleAudioEngine) {
+                    window.HeardleAudioEngine.stop();
+                    window.HeardleAudioEngine.currentSong = null;
+                }
                 send('RESTART_GAME');
             });
         }
@@ -2246,7 +2278,8 @@
             return;
         }
 
-        if (e.key === '/') {
+        // 'D' or 'd': Focus search input
+        if (e.key === 'd' || e.key === 'D') {
             e.preventDefault();
             const search = document.getElementById('mpSearchInput');
             if (search && !search.disabled) search.focus();

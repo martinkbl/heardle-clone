@@ -1182,7 +1182,7 @@
 
             <!-- Search input -->
             <div class="search-container">
-                <input type="text" class="search-input" placeholder="Know it? Search for the title or artist (Press / to focus)" id="searchInput" autocomplete="off" spellcheck="false">
+                <input type="text" class="search-input" placeholder="Know it? Search for the title or artist (Press D to focus)" id="searchInput" autocomplete="off" spellcheck="false">
                 <button class="clear-button" id="clearButton">✕</button>
                 <div class="autocomplete-dropdown" id="autocompleteDropdown"></div>
             </div>
@@ -1197,7 +1197,7 @@
             <div class="shortcuts-legend">
                 <span class="shortcut-item"><kbd class="kbd-key">Space</kbd> Play/Pause</span>
                 <span class="shortcut-item"><kbd class="kbd-key">S</kbd> Skip</span>
-                <span class="shortcut-item"><kbd class="kbd-key">/</kbd> Search</span>
+                <span class="shortcut-item"><kbd class="kbd-key">D</kbd> Search</span>
             </div>
 
             <!-- Game over screen -->
@@ -3455,8 +3455,8 @@
                 return;
             }
 
-            // '/': Focus search input
-            if (e.key === '/') {
+            // 'D' or 'd': Focus search input
+            if (e.key === 'd' || e.key === 'D') {
                 e.preventDefault();
                 searchInput.focus();
                 return;

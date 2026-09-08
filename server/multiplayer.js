@@ -574,6 +574,7 @@ class MultiplayerManager {
 
         room.state = 'LOBBY';
         room.currentRound = 0;
+        room.currentSong = null;
         room.playedSongIds.clear();
         room.players.forEach(p => {
             p.score = 0;
