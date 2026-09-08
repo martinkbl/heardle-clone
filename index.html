@@ -5,6 +5,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Heardle Unlimited</title>
+    <link rel="stylesheet" href="multiplayer.css" />
 
     <style>
         * {
@@ -1103,6 +1104,13 @@
         <!-- Header with title and icons -->
         <div class="game-header">
             <div class="header-left">
+                <div class="mode-switcher-container">
+                    <button type="button" class="mode-btn active" id="modeSoloBtn">🎮 Solo</button>
+                    <button type="button" class="mode-btn" id="modeMpBtn">
+                        <span class="connection-dot online" id="mpConnectionDot"></span>
+                        👥 Multijoueur
+                    </button>
+                </div>
             </div>
 
             <h1 class="game-title">Heardle Unlimited</h1>
@@ -1116,8 +1124,8 @@
             </div>
         </div>
 
-        <!-- Game content -->
-        <div class="game-content">
+        <!-- Game content (Solo) -->
+        <div class="game-content" id="soloGameContent">
             <!-- Game stats -->
             <div class="game-stats">
                 <span>Attempt: <span id="currentAttempt">1</span>/6</span>
@@ -1210,6 +1218,11 @@
 
                 <button class="play-again-button" id="playAgainButton">Play Again</button>
             </div>
+        </div>
+
+        <!-- Multiplayer game content -->
+        <div class="mp-game-content hidden" id="mpGameContent">
+            <div id="mpDynamicArea" style="width: 100%;"></div>
         </div>
     </div>
 
@@ -3283,6 +3296,8 @@
             }
         }
     </script>
+    <!-- Multiplayer module -->
+    <script src="multiplayer.js"></script>
 </body>
 
 </html>

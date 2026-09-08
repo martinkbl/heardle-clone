@@ -2,9 +2,11 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
+const { WebSocketServer } = require('ws');
 const spotifyHandler = require('./api/spotify');
 const deezerHandler = require('./api/deezer');
 const matchHandler = require('./api/match');
+const MultiplayerManager = require('./server/multiplayer');
 
 const PORT = process.env.PORT || 3000;
 
@@ -86,6 +88,10 @@ const server = http.createServer(async (req, res) => {
     });
 });
 
+// Setup WebSocket server for multiplayer
+const wss = new WebSocketServer({ server });
+const multiplayerManager = new MultiplayerManager(wss);
+
 server.listen(PORT, () => {
-    console.log(`Server running at http://localhost:${PORT}/`);
+    console.log(`Server running at http://localhost:${PORT}/ (WebSocket enabled for multiplayer)`);
 });
