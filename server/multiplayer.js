@@ -25,6 +25,41 @@ try {
 
 // Active rooms in memory: roomCode -> Room Object
 const rooms = new Map();
+const https = require('https');
+
+function fetchDeezerAudioPreview(artist, title) {
+    return new Promise((resolve) => {
+        try {
+            const cleanA = (artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
+            const cleanT = (title || '').trim();
+            const query = `${cleanA} ${cleanT}`.trim();
+            if (!query) return resolve(null);
+
+            const searchUrl = `https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=5`;
+            const req = https.get(searchUrl, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            }, (res) => {
+                let d = '';
+                res.on('data', c => d += c);
+                res.on('end', () => {
+                    try {
+                        const data = JSON.parse(d);
+                        if (data && Array.isArray(data.data) && data.data.length > 0) {
+                            for (const item of data.data) {
+                                if (item.preview) return resolve(item.preview);
+                            }
+                        }
+                    } catch (e) {}
+                    resolve(null);
+                });
+            });
+            req.on('error', () => resolve(null));
+            req.setTimeout(2500, () => { req.destroy(); resolve(null); });
+        } catch (e) {
+            resolve(null);
+        }
+    });
+}
 
 function generateRoomCode() {
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -332,7 +367,7 @@ class MultiplayerManager {
         this.startNextRound(room);
     }
 
-    startNextRound(room) {
+    async startNextRound(room) {
         if (room.roundTimer) {
             clearTimeout(room.roundTimer);
             room.roundTimer = null;
@@ -354,6 +389,11 @@ class MultiplayerManager {
         room.currentSong = selectedSong;
         if (selectedSong && selectedSong.id) {
             room.playedSongIds.add(selectedSong.id);
+        }
+
+        // Pre-resolve audio preview to guarantee 100% playable audio even if YouTube embed is blocked
+        if (!selectedSong.audioPreviewUrl && selectedSong.artist && selectedSong.title) {
+            selectedSong.audioPreviewUrl = await fetchDeezerAudioPreview(selectedSong.artist, selectedSong.title);
         }
 
         room.currentRound += 1;

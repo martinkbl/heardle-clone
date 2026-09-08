@@ -1038,7 +1038,7 @@
         }
     }
 
-    function startP2PRound() {
+    async function startP2PRound() {
         const r = MP.p2pRoomState;
         const songPool = getP2PSongs(r.playlistKey);
 
@@ -1056,6 +1056,26 @@
         const song = available[Math.floor(Math.random() * available.length)];
         r.currentSong = song;
         if (song && song.id) r.playedSongIds.add(song.id);
+
+        if (!song.audioPreviewUrl && song.artist && song.title) {
+            try {
+                const cleanA = (song.artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
+                const cleanT = (song.title || '').trim();
+                const q = `${cleanA} ${cleanT}`.trim();
+                const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=5`);
+                if (res.ok) {
+                    const d = await res.json();
+                    if (d && Array.isArray(d.data) && d.data.length > 0) {
+                        for (const item of d.data) {
+                            if (item.preview) {
+                                song.audioPreviewUrl = item.preview;
+                                break;
+                            }
+                        }
+                    }
+                }
+            } catch (e) {}
+        }
 
         r.currentRound += 1;
         r.state = 'PLAYING';
