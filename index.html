@@ -2770,10 +2770,42 @@
             }
         };
 
-        function onPlayerError(event) {
+        async function onPlayerError(event) {
             console.warn('YouTube Player Error:', event.data);
-            if (activeAudioType === 'youtube' && !gameEnded && (event.data === 101 || event.data === 150 || event.data === 100 || event.data === 2)) {
-                instructionText.textContent = "⚠️ Video not playable in embed. Skipping to next song...";
+            if (activeAudioType === 'youtube' && !gameEnded && currentSong && (event.data === 101 || event.data === 150 || event.data === 100 || event.data === 2)) {
+                instructionText.textContent = "Source vidéo restreinte. Recherche d'un extrait de secours...";
+                try {
+                    const cleanArtist = (currentSong.artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
+                    const cleanTitle = (currentSong.title || '').trim();
+                    const res = await fetch(`/api/match?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`);
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data.audioPreviewUrl) {
+                            currentSong.audioPreviewUrl = data.audioPreviewUrl;
+                            activeAudioType = 'preview';
+                            if (!htmlAudio) htmlAudio = new Audio();
+                            htmlAudio.src = data.audioPreviewUrl;
+                            htmlAudio.preload = 'auto';
+                            instructionText.textContent = "Extrait officiel connecté ! Appuyez sur ▶.";
+                            if (isPlaying) {
+                                htmlAudio.currentTime = 0;
+                                htmlAudio.play().catch(e => console.warn(e));
+                            }
+                            return;
+                        } else if (data.videoId && data.videoId !== currentSong.id) {
+                            currentSong.id = data.videoId;
+                            if (player && player.loadVideoById) {
+                                player.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
+                                instructionText.textContent = "Source vidéo de secours connectée ! Appuyez sur ▶.";
+                            }
+                            return;
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Fallback error in Solo:', e);
+                }
+
+                instructionText.textContent = "⚠️ Morceau non disponible en intégration. Passage au suivant...";
                 setTimeout(() => {
                     resetGame(false);
                 }, 1200);

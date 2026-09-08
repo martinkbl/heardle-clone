@@ -99,7 +99,12 @@
                             mpYtPlayer.setVolume(100);
                         } catch (err) {}
                     },
-                    'onError': (e) => console.warn('MP YT Player Error:', e.data)
+                    'onError': (e) => {
+                        console.warn('MP YT Player Error:', e.data);
+                        if (window.HeardleAudioEngine && (e.data === 150 || e.data === 101 || e.data === 100 || e.data === 2)) {
+                            window.HeardleAudioEngine.handlePlaybackError();
+                        }
+                    }
                 }
             });
         } catch (e) {
@@ -115,6 +120,42 @@
         playbackTimer: null,
         progressRaf: null,
         checkInterval: null,
+
+        handlePlaybackError: async function () {
+            if (!this.currentSong) return;
+            const song = this.currentSong;
+            console.warn(`[AudioEngine] Video blocked/error for "${song.artist} - ${song.title}". Trying automatic fallback rescue...`);
+
+            try {
+                const cleanArtist = (song.artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
+                const cleanTitle = (song.title || '').trim();
+                const res = await fetch(`/api/match?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.audioPreviewUrl) {
+                        song.audioPreviewUrl = data.audioPreviewUrl;
+                        this.activeType = 'preview';
+                        if (!this.htmlAudio) this.htmlAudio = new Audio();
+                        this.htmlAudio.src = data.audioPreviewUrl;
+                        this.htmlAudio.preload = 'auto';
+                        if (this.isPlaying) {
+                            this.htmlAudio.currentTime = 0;
+                            this.htmlAudio.play().catch(e => console.warn('Preview fallback error:', e));
+                        }
+                        return;
+                    } else if (data.videoId && data.videoId !== song.id) {
+                        song.id = data.videoId;
+                        this.activeType = 'youtube';
+                        if (mpYtPlayer && mpYtPlayer.loadVideoById) {
+                            mpYtPlayer.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
+                        }
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.warn('[AudioEngine] Fallback rescue error:', err);
+            }
+        },
 
         cueSong: function (song) {
             this.stop();
