@@ -2253,7 +2253,9 @@
             if (player && playerReady && player.pauseVideo) {
                 try {
                     player.pauseVideo();
-                    player.seekTo(0, true);
+                    if (player.getCurrentTime && player.getCurrentTime() > 0) {
+                        player.seekTo(0, false);
+                    }
                 } catch (e) {}
             }
             isPlaying = false;
@@ -2737,7 +2739,9 @@
                 if (ytPlayer && typeof ytPlayer.pauseVideo === 'function') {
                     try {
                         ytPlayer.pauseVideo();
-                        ytPlayer.seekTo(0, true);
+                        if (ytPlayer.getCurrentTime && ytPlayer.getCurrentTime() > 0) {
+                            ytPlayer.seekTo(0, false);
+                        }
                     } catch (e) {}
                 }
             },
@@ -2794,9 +2798,16 @@
                             return;
                         } else if (data.videoId && data.videoId !== currentSong.id) {
                             currentSong.id = data.videoId;
-                            if (player && player.loadVideoById) {
-                                player.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
-                                instructionText.textContent = "Source vidéo de secours connectée ! Appuyez sur ▶.";
+                            if (isPlaying) {
+                                if (player && player.loadVideoById) {
+                                    player.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
+                                    instructionText.textContent = "Source vidéo de secours connectée ! Appuyez sur ▶.";
+                                }
+                            } else {
+                                if (player && player.cueVideoById) {
+                                    player.cueVideoById(data.videoId);
+                                    instructionText.textContent = "Source vidéo de secours connectée ! Appuyez sur ▶.";
+                                }
                             }
                             return;
                         }
@@ -2814,6 +2825,12 @@
 
         function onPlayerStateChange(event) {
             if (event.data === 1 || (window.YT && event.data === window.YT.PlayerState.PLAYING)) { // Playing
+                if (!isPlaying && !gameEnded) {
+                    try {
+                        if (player && player.pauseVideo) player.pauseVideo();
+                    } catch (err) {}
+                    return;
+                }
                 isPlaying = true;
                 playButton.textContent = "⏸";
                 if (gameEnded && player && player.getDuration) {

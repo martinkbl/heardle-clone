@@ -99,6 +99,14 @@
                             mpYtPlayer.setVolume(100);
                         } catch (err) {}
                     },
+                    'onStateChange': (e) => {
+                        // Guard: If YouTube starts playing unexpectedly while engine is not playing
+                        if (e.data === 1 && window.HeardleAudioEngine && !window.HeardleAudioEngine.isPlaying && !window.HeardleAudioEngine.isFullPlaying) {
+                            try {
+                                mpYtPlayer.pauseVideo();
+                            } catch (err) {}
+                        }
+                    },
                     'onError': (e) => {
                         console.warn('MP YT Player Error:', e.data);
                         if (window.HeardleAudioEngine && (e.data === 150 || e.data === 101 || e.data === 100 || e.data === 2)) {
@@ -117,6 +125,7 @@
         currentSong: null,
         htmlAudio: null,
         isPlaying: false,
+        isFullPlaying: false,
         playbackTimer: null,
         progressRaf: null,
         checkInterval: null,
@@ -146,8 +155,14 @@
                     } else if (data.videoId && data.videoId !== song.id) {
                         song.id = data.videoId;
                         this.activeType = 'youtube';
-                        if (mpYtPlayer && mpYtPlayer.loadVideoById) {
-                            mpYtPlayer.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
+                        if (this.isPlaying) {
+                            if (mpYtPlayer && mpYtPlayer.loadVideoById) {
+                                mpYtPlayer.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
+                            }
+                        } else {
+                            if (mpYtPlayer && mpYtPlayer.cueVideoById) {
+                                mpYtPlayer.cueVideoById(data.videoId);
+                            }
                         }
                         return;
                     }
@@ -298,6 +313,7 @@
 
         stop: function () {
             this.isPlaying = false;
+            this.isFullPlaying = false;
             if (this.playbackTimer) {
                 clearTimeout(this.playbackTimer);
                 this.playbackTimer = null;
@@ -319,13 +335,16 @@
             if (mpYtPlayer && typeof mpYtPlayer.pauseVideo === 'function') {
                 try {
                     mpYtPlayer.pauseVideo();
-                    mpYtPlayer.seekTo(0, true);
+                    if (mpYtPlayer.getCurrentTime && mpYtPlayer.getCurrentTime() > 0) {
+                        mpYtPlayer.seekTo(0, false);
+                    }
                 } catch (e) {}
             }
         },
 
         playFull: function () {
             this.isPlaying = true;
+            this.isFullPlaying = true;
             if (this.activeType === 'preview' && this.htmlAudio) {
                 this.htmlAudio.play().catch(e => console.warn('Full audio error:', e));
             } else if (mpYtPlayer && typeof mpYtPlayer.playVideo === 'function') {
@@ -339,6 +358,7 @@
 
         pauseFull: function () {
             this.isPlaying = false;
+            this.isFullPlaying = false;
             if (this.htmlAudio) {
                 try { this.htmlAudio.pause(); } catch (e) {}
             }
