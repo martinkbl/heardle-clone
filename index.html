@@ -2276,6 +2276,17 @@
                 }
                 htmlAudio.src = currentSong.audioPreviewUrl;
                 htmlAudio.preload = 'auto';
+                htmlAudio.onerror = () => {
+                    console.warn('Audio preview failed to load, switching to YouTube fallback for:', currentSong);
+                    activeAudioType = 'youtube';
+                    if (currentSong.id) {
+                        initYouTubePlayer();
+                    } else {
+                        resolveSongYouTubeId(currentSong).then(id => {
+                            if (id) initYouTubePlayer();
+                        });
+                    }
+                };
                 playButton.disabled = false;
                 instructionText.textContent = "Ready! Turn up the volume and tap to start.";
 
@@ -2286,6 +2297,8 @@
                             switchToFullYouTubeTrack();
                         }
                     }).catch(() => {});
+                } else {
+                    initYouTubePlayer();
                 }
                 return;
             }
@@ -2315,8 +2328,14 @@
                 }
                 htmlAudio.src = currentSong.audioPreviewUrl;
                 htmlAudio.preload = 'auto';
+                htmlAudio.onerror = () => {
+                    console.warn('Audio preview failed, switching to YouTube:', currentSong);
+                    activeAudioType = 'youtube';
+                    if (currentSong.id) initYouTubePlayer();
+                };
                 playButton.disabled = false;
                 instructionText.textContent = "Ready! Turn up the volume and tap to start.";
+                if (currentSong.id) initYouTubePlayer();
                 return;
             }
 
@@ -2325,6 +2344,8 @@
                 activeAudioType = 'youtube';
                 if (player && player.cueVideoById) {
                     try {
+                        player.unMute();
+                        player.setVolume(100);
                         player.cueVideoById(currentSong.id);
                         instructionText.textContent = "Ready! Turn up the volume and tap to start.";
                         playButton.disabled = false;
@@ -2573,25 +2594,35 @@
                     this.htmlAudio.src = song.audioPreviewUrl;
                     this.htmlAudio.preload = 'auto';
                     this.htmlAudio.currentTime = 0;
+                    this.htmlAudio.onerror = () => {
+                        console.warn('[AudioEngine] Preview failed, switching to YouTube for:', song);
+                        this.activeType = 'youtube';
+                        if (song.id) this.cueYouTube(song.id);
+                    };
+                    if (song.id) this.cueYouTube(song.id);
                     return;
                 }
 
                 if (song.id) {
                     this.activeType = 'youtube';
-                    const ytPlayer = window.player || player;
-                    if (ytPlayer && typeof ytPlayer.cueVideoById === 'function') {
-                        try {
-                            ytPlayer.unMute();
-                            ytPlayer.setVolume(100);
-                            ytPlayer.cueVideoById(song.id);
-                            window.player = ytPlayer;
-                            window.playerReady = true;
-                        } catch (e) {
-                            initYouTubePlayer();
-                        }
-                    } else {
+                    this.cueYouTube(song.id);
+                }
+            },
+
+            cueYouTube: function (videoId) {
+                const ytPlayer = window.player || player;
+                if (ytPlayer && typeof ytPlayer.cueVideoById === 'function') {
+                    try {
+                        ytPlayer.unMute();
+                        ytPlayer.setVolume(100);
+                        ytPlayer.cueVideoById(videoId);
+                        window.player = ytPlayer;
+                        window.playerReady = true;
+                    } catch (e) {
                         initYouTubePlayer();
                     }
+                } else {
+                    initYouTubePlayer();
                 }
             },
 
@@ -2983,9 +3014,31 @@
                 if (activeAudioType === 'preview' && htmlAudio) {
                     try {
                         htmlAudio.currentTime = 0;
-                        htmlAudio.play().catch(e => console.error('HTML5 audio play error:', e));
+                        const p = htmlAudio.play();
+                        if (p !== undefined) {
+                            p.catch(e => {
+                                console.warn('HTML5 audio play error, falling back to YouTube:', e);
+                                activeAudioType = 'youtube';
+                                if (currentSong && currentSong.id) {
+                                    if (!player) {
+                                        initYouTubePlayer();
+                                    } else {
+                                        try {
+                                            player.unMute();
+                                            player.setVolume(100);
+                                            player.seekTo(0, true);
+                                            player.playVideo();
+                                        } catch (err) {
+                                            initYouTubePlayer();
+                                        }
+                                    }
+                                }
+                            });
+                        }
                     } catch (e) {
                         console.error('HTML5 audio play exception:', e);
+                        activeAudioType = 'youtube';
+                        if (currentSong && currentSong.id) initYouTubePlayer();
                     }
                 } else if (activeAudioType === 'youtube') {
                     if (!player) {
@@ -2999,6 +3052,8 @@
                         playerReady = true;
                     }
                     try {
+                        player.unMute();
+                        player.setVolume(100);
                         player.seekTo(0, true);
                         player.playVideo();
                     } catch (e) {

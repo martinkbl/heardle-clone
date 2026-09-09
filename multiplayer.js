@@ -215,22 +215,32 @@
                 this.htmlAudio.src = song.audioPreviewUrl;
                 this.htmlAudio.preload = 'auto';
                 this.htmlAudio.currentTime = 0;
+                this.htmlAudio.onerror = () => {
+                    console.warn('[MP AudioEngine] Preview failed, switching to YouTube for:', song);
+                    this.activeType = 'youtube';
+                    if (song.id) this.cueYouTube(song.id);
+                };
+                if (song.id) this.cueYouTube(song.id);
                 return;
             }
 
             if (song.id) {
                 this.activeType = 'youtube';
-                if (mpYtPlayer && typeof mpYtPlayer.cueVideoById === 'function') {
-                    try {
-                        mpYtPlayer.unMute();
-                        mpYtPlayer.setVolume(100);
-                        mpYtPlayer.cueVideoById(song.id);
-                    } catch (e) {
-                        initMpYTPlayer();
-                    }
-                } else {
+                this.cueYouTube(song.id);
+            }
+        },
+
+        cueYouTube: function (videoId) {
+            if (mpYtPlayer && typeof mpYtPlayer.cueVideoById === 'function') {
+                try {
+                    mpYtPlayer.unMute();
+                    mpYtPlayer.setVolume(100);
+                    mpYtPlayer.cueVideoById(videoId);
+                } catch (e) {
                     initMpYTPlayer();
                 }
+            } else {
+                initMpYTPlayer();
             }
         },
 
@@ -242,7 +252,20 @@
                 try {
                     this.htmlAudio.currentTime = 0;
                     const p = this.htmlAudio.play();
-                    if (p !== undefined) p.catch(e => console.warn('Preview play error:', e));
+                    if (p !== undefined) {
+                        p.catch(e => {
+                            console.warn('[MP AudioEngine] Preview play error, switching to YouTube:', e);
+                            this.activeType = 'youtube';
+                            if (this.currentSong && this.currentSong.id && mpYtPlayer && typeof mpYtPlayer.playVideo === 'function') {
+                                try {
+                                    mpYtPlayer.unMute();
+                                    mpYtPlayer.setVolume(100);
+                                    mpYtPlayer.seekTo(0, true);
+                                    mpYtPlayer.playVideo();
+                                } catch(err) {}
+                            }
+                        });
+                    }
                 } catch (e) {
                     console.warn('Preview play exception:', e);
                 }
