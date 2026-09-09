@@ -132,12 +132,44 @@
 
         handlePlaybackError: async function () {
             if (!this.currentSong) return;
-            const song = this.currentSong;
-            console.warn(`[AudioEngine] Video blocked/error for "${song.artist} - ${song.title}". Trying automatic fallback rescue...`);
+            let song = this.currentSong;
+
+            // If artist/title missing from songAudio object, look up by id in playlist database
+            if (!song.artist || !song.title) {
+                const allSongs = (typeof getAllSearchableSongs === 'function') 
+                    ? getAllSearchableSongs() 
+                    : (window.allSearchableSongs || []);
+                const match = allSongs.find(s => s && s.id === song.id);
+                if (match) {
+                    song.artist = match.artist;
+                    song.title = match.title;
+                    if (match.audioPreviewUrl && !song.audioPreviewUrl) {
+                        song.audioPreviewUrl = match.audioPreviewUrl;
+                    }
+                }
+            }
+
+            console.warn(`[AudioEngine] Video blocked/error for "${song.artist || song.id} - ${song.title || ''}". Trying automatic fallback rescue...`);
+
+            if (song.audioPreviewUrl) {
+                this.activeType = 'preview';
+                if (!this.htmlAudio) this.htmlAudio = new Audio();
+                this.htmlAudio.src = song.audioPreviewUrl;
+                this.htmlAudio.preload = 'auto';
+                if (this.isPlaying) {
+                    this.htmlAudio.currentTime = 0;
+                    this.htmlAudio.play().catch(e => console.warn('Preview fallback error:', e));
+                }
+                return;
+            }
 
             try {
                 const cleanArtist = (song.artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
                 const cleanTitle = (song.title || '').trim();
+                if (!cleanArtist && !cleanTitle) {
+                    console.warn('[AudioEngine] Missing artist and title for fallback lookup.');
+                    return;
+                }
                 const res = await fetch(`/api/match?artist=${encodeURIComponent(cleanArtist)}&title=${encodeURIComponent(cleanTitle)}`);
                 if (res.ok) {
                     const data = await res.json();
@@ -551,23 +583,499 @@
         return code;
     }
 
+    // ==========================================
+    // CUSTOM PLAYLISTS & STORAGE MANAGEMENT
+    // ==========================================
+    const STORAGE_KEY_V1 = 'heardle_custom_playlists_v1';
+    const STORAGE_KEY_OLD = 'heardle_custom_playlists';
+
+    function getSavedCustomPlaylists() {
+        try {
+            const raw1 = localStorage.getItem(STORAGE_KEY_V1);
+            if (raw1) return JSON.parse(raw1);
+            const rawOld = localStorage.getItem(STORAGE_KEY_OLD);
+            if (rawOld) return JSON.parse(rawOld);
+        } catch (e) {
+            console.warn('Error reading custom playlists:', e);
+        }
+        return {};
+    }
+
+    function saveCustomPlaylistToStorage(key, playlistObj) {
+        try {
+            const current = getSavedCustomPlaylists();
+            current[key] = playlistObj;
+            localStorage.setItem(STORAGE_KEY_V1, JSON.stringify(current));
+            localStorage.setItem(STORAGE_KEY_OLD, JSON.stringify(current));
+        } catch (e) {
+            console.warn('Error saving custom playlist:', e);
+        }
+    }
+
+    function deleteCustomPlaylistFromStorage(key) {
+        try {
+            const current = getSavedCustomPlaylists();
+            delete current[key];
+            localStorage.setItem(STORAGE_KEY_V1, JSON.stringify(current));
+            localStorage.setItem(STORAGE_KEY_OLD, JSON.stringify(current));
+        } catch (e) {
+            console.warn('Error deleting custom playlist:', e);
+        }
+    }
+
+    function isSpotifyUrl(rawInput) {
+        if (!rawInput) return false;
+        const str = rawInput.trim().toLowerCase();
+        return str.includes('spotify.com') || str.startsWith('spotify:');
+    }
+
+    function isDeezerUrl(rawInput) {
+        if (!rawInput) return false;
+        const str = rawInput.trim().toLowerCase();
+        return str.includes('deezer.com') || str.includes('deezer.page.link') || str.includes('dzr.page.link');
+    }
+
+    function extractSpotifyPlaylistId(rawInput) {
+        if (!rawInput) return '';
+        let val = rawInput.trim();
+        if (val.includes('/playlist/')) {
+            val = val.split('/playlist/')[1];
+        } else if (val.includes('spotify:playlist:')) {
+            val = val.split('spotify:playlist:')[1];
+        }
+        if (val.includes('?')) val = val.split('?')[0];
+        if (val.includes('&')) val = val.split('&')[0];
+        if (val.includes('/')) val = val.split('/')[0];
+        if (val.includes('#')) val = val.split('#')[0];
+        return val.trim();
+    }
+
+    function extractDeezerPlaylistId(rawInput) {
+        if (!rawInput) return '';
+        let val = rawInput.trim();
+        if (val.includes('/playlist/')) {
+            val = val.split('/playlist/')[1];
+        }
+        if (val.includes('?')) val = val.split('?')[0];
+        if (val.includes('&')) val = val.split('&')[0];
+        if (val.includes('/')) val = val.split('/')[0];
+        if (val.includes('#')) val = val.split('#')[0];
+        return val.trim();
+    }
+
+    function extractYouTubePlaylistId(rawInput) {
+        if (!rawInput) return '';
+        let val = rawInput.trim();
+        if (val.includes('list=')) {
+            val = val.split('list=')[1];
+        }
+        if (val.includes('&')) val = val.split('&')[0];
+        if (val.includes('?')) val = val.split('?')[0];
+        if (val.includes('#')) val = val.split('#')[0];
+        return val.trim();
+    }
+
+    async function fetchSpotifyPlaylist(urlOrId, customName = '', onProgress = null) {
+        if (onProgress) onProgress('Chargement de la playlist Spotify...');
+        const endpoint = `/api/spotify?url=${encodeURIComponent(urlOrId)}`;
+        const res = await fetch(endpoint);
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Erreur HTTP ${res.status}: Impossible de charger la playlist Spotify`);
+        }
+        const data = await res.json();
+        if (!data.songs || data.songs.length === 0) {
+            throw new Error('Aucun morceau trouvé dans cette playlist Spotify.');
+        }
+        return {
+            id: data.id,
+            name: customName ? customName.trim() : (data.name || 'Spotify Playlist'),
+            source: 'spotify',
+            songs: data.songs
+        };
+    }
+
+    async function fetchDeezerPlaylist(urlOrId, customName = '', onProgress = null) {
+        if (onProgress) onProgress('Chargement de la playlist Deezer...');
+        const endpoint = `/api/deezer?url=${encodeURIComponent(urlOrId)}`;
+        const res = await fetch(endpoint);
+        if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Erreur HTTP ${res.status}: Impossible de charger la playlist Deezer`);
+        }
+        const data = await res.json();
+        if (!data.songs || data.songs.length === 0) {
+            throw new Error('Aucun morceau trouvé dans cette playlist Deezer.');
+        }
+        return {
+            id: data.id,
+            name: customName ? customName.trim() : (data.name || 'Deezer Playlist'),
+            source: 'deezer',
+            songs: data.songs
+        };
+    }
+
+    async function fetchYouTubePlaylistFromBrowser(playlistId, customName = '', onProgress = null) {
+        const apiKey = (window.YOUTUBE_CONFIG && window.YOUTUBE_CONFIG.API_KEY) || 'AIzaSyDA4eTxUyaC8s8rHlOp4AjKNqjycDljte4';
+        let resolvedName = customName ? customName.trim() : '';
+
+        if (!resolvedName) {
+            try {
+                const plRes = await fetch(`https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}`);
+                if (plRes.ok) {
+                    const plData = await plRes.json();
+                    if (plData.items && plData.items[0]?.snippet?.title) {
+                        resolvedName = plData.items[0].snippet.title;
+                    }
+                }
+            } catch (e) {}
+        }
+        if (!resolvedName) resolvedName = `Playlist ${playlistId.slice(0, 8)}`;
+
+        let allSongs = [];
+        let nextPageToken = '';
+        let pageCount = 0;
+
+        do {
+            pageCount++;
+            if (onProgress) onProgress(`Chargement page ${pageCount}... (${allSongs.length} morceaux)`);
+            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}${nextPageToken ? '&pageToken=' + encodeURIComponent(nextPageToken) : ''}`;
+            const res = await fetch(url);
+            if (!res.ok) {
+                const errData = await res.json().catch(() => ({}));
+                throw new Error((errData.error && errData.error.message) ? errData.error.message : `HTTP ${res.status}`);
+            }
+            const data = await res.json();
+            const items = data.items || [];
+            if (items.length === 0) break;
+
+            const cleanItems = items.map(item => {
+                const snippet = item.snippet || {};
+                const videoId = (item.contentDetails && item.contentDetails.videoId) || snippet.resourceId?.videoId || null;
+                let title = snippet.title || 'Unknown Title';
+                let artist = snippet.videoOwnerChannelTitle || 'Unknown Artist';
+
+                if (title.includes(' - ')) {
+                    const parts = title.split(' - ');
+                    artist = parts[0].trim();
+                    title = parts.slice(1).join(' - ').trim();
+                }
+
+                title = title
+                    .replace(/[\(\[\{].*?[\)\]\}]/g, '')
+                    .replace(/Official Video/gi, '')
+                    .replace(/Official Audio/gi, '')
+                    .replace(/Lyrics/gi, '')
+                    .replace(/ft\./gi, '')
+                    .replace(/feat\./gi, '')
+                    .replace(/,/g, '')
+                    .trim();
+
+                return {
+                    id: videoId,
+                    title: title,
+                    artist: artist,
+                    original_title: snippet.title,
+                    thumbnail: snippet.thumbnails?.high?.url || snippet.thumbnails?.default?.url
+                };
+            }).filter(s => s.id && s.title !== 'Private video' && s.title !== 'Deleted video');
+
+            allSongs = allSongs.concat(cleanItems);
+            nextPageToken = data.nextPageToken;
+        } while (nextPageToken && pageCount < 60);
+
+        if (allSongs.length === 0) {
+            throw new Error('Aucun morceau lisible trouvé dans cette playlist YouTube.');
+        }
+
+        return {
+            id: playlistId,
+            name: resolvedName,
+            source: 'youtube',
+            songs: allSongs
+        };
+    }
+
+    let mpModalTargetSelectId = 'mpPlaylistSelect';
+
+    function openCustomPlaylistModal(targetSelectId = 'mpPlaylistSelect') {
+        mpModalTargetSelectId = targetSelectId;
+        const modal = document.getElementById('mpCustomPlaylistModal');
+        if (!modal) return;
+
+        const errorEl = document.getElementById('mpModalErrorText');
+        const statusContainer = document.getElementById('mpFetchStatusContainer');
+        const urlInput = document.getElementById('mpCustomPlaylistUrlInput');
+        const nameInput = document.getElementById('mpCustomPlaylistNameInput');
+        const submitBtn = document.getElementById('mpSubmitCustomPlaylistBtn');
+
+        if (errorEl) { errorEl.textContent = ''; errorEl.classList.add('hidden'); }
+        if (statusContainer) statusContainer.classList.add('hidden');
+        if (urlInput) urlInput.value = '';
+        if (nameInput) nameInput.value = '';
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Charger la Playlist 🚀'; }
+
+        renderSavedPlaylistsInModal();
+        modal.classList.remove('hidden');
+        setTimeout(() => { if (urlInput) urlInput.focus(); }, 100);
+    }
+
+    function closeCustomPlaylistModal() {
+        const modal = document.getElementById('mpCustomPlaylistModal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    function renderSavedPlaylistsInModal() {
+        const container = document.getElementById('mpSavedPlaylistsList');
+        if (!container) return;
+
+        const saved = getSavedCustomPlaylists();
+        const keys = Object.keys(saved);
+
+        if (keys.length === 0) {
+            container.innerHTML = `<div style="color: #666; font-size: 12px; text-align: center; padding: 8px;">Aucune playlist personnalisée enregistrée.</div>`;
+            return;
+        }
+
+        container.innerHTML = keys.map(key => {
+            const pl = saved[key];
+            let badge = '<span class="playlist-badge yt-badge">YouTube</span>';
+            if (pl.source === 'spotify') badge = '<span class="playlist-badge spotify-badge">Spotify</span>';
+            else if (pl.source === 'deezer') badge = '<span class="playlist-badge deezer-badge">Deezer</span>';
+
+            return `
+                <div class="saved-playlist-row">
+                    <div class="saved-playlist-info">
+                        <span class="saved-playlist-name">${badge} ${escapeHtml(pl.name)}</span>
+                        <span class="saved-playlist-count">${pl.songs ? pl.songs.length : 0} morceaux</span>
+                    </div>
+                    <div class="saved-playlist-actions">
+                        <button type="button" class="saved-playlist-play-btn" data-key="${key}">Utiliser</button>
+                        <button type="button" class="saved-playlist-delete-btn" data-key="${key}" title="Supprimer la playlist">🗑️</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        container.querySelectorAll('.saved-playlist-play-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.getAttribute('data-key');
+                selectCustomPlaylistByKey(key);
+                closeCustomPlaylistModal();
+            });
+        });
+
+        container.querySelectorAll('.saved-playlist-delete-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const key = btn.getAttribute('data-key');
+                deleteCustomPlaylistFromStorage(key);
+                renderSavedPlaylistsInModal();
+                refreshPlaylistSelectOptions();
+                showToast('Playlist supprimée avec succès.');
+            });
+        });
+    }
+
+    function selectCustomPlaylistByKey(key) {
+        const saved = getSavedCustomPlaylists();
+        const pl = saved[key];
+        if (!pl) return;
+
+        refreshPlaylistSelectOptions(key);
+
+        if (mpModalTargetSelectId === 'mpLobbyPlaylistSelect' && MP.isHost && MP.room) {
+            send('UPDATE_SETTINGS', {
+                playlistKey: key,
+                playlistName: pl.name,
+                customSongs: pl.songs
+            });
+            showToast(`Playlist "${pl.name}" sélectionnée pour le salon !`, 'success');
+        } else {
+            showToast(`Playlist "${pl.name}" sélectionnée !`, 'success');
+        }
+    }
+
+    function refreshPlaylistSelectOptions(selectedKey = '') {
+        const hubSelect = document.getElementById('mpPlaylistSelect');
+        const lobbySelect = document.getElementById('mpLobbyPlaylistSelect');
+        const playlists = getAvailablePlaylistsList();
+
+        const buildOptionsHtml = (currentVal) => {
+            return playlists.map(pl => {
+                const isSelected = selectedKey ? (pl.key === selectedKey) : (pl.key === currentVal);
+                return `<option value="${pl.key}" ${isSelected ? 'selected' : ''}>${escapeHtml(pl.name)} (${pl.count} sons)</option>`;
+            }).join('');
+        };
+
+        if (hubSelect) hubSelect.innerHTML = buildOptionsHtml(hubSelect.value);
+        if (lobbySelect) lobbySelect.innerHTML = buildOptionsHtml(lobbySelect.value);
+    }
+
+    async function handleCustomPlaylistSubmit() {
+        const urlInput = document.getElementById('mpCustomPlaylistUrlInput');
+        const nameInput = document.getElementById('mpCustomPlaylistNameInput');
+        const errorEl = document.getElementById('mpModalErrorText');
+        const statusContainer = document.getElementById('mpFetchStatusContainer');
+        const statusText = document.getElementById('mpFetchStatusText');
+        const submitBtn = document.getElementById('mpSubmitCustomPlaylistBtn');
+
+        const rawUrl = (urlInput?.value || '').trim();
+        const customName = (nameInput?.value || '').trim();
+
+        if (!rawUrl) {
+            if (errorEl) {
+                errorEl.textContent = 'Veuillez coller un lien Spotify, Deezer ou YouTube.';
+                errorEl.classList.remove('hidden');
+            }
+            return;
+        }
+
+        if (errorEl) errorEl.classList.add('hidden');
+        if (statusContainer) statusContainer.classList.remove('hidden');
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Chargement en cours...';
+        }
+
+        const updateProgress = (msg) => {
+            if (statusText) statusText.textContent = msg;
+        };
+
+        try {
+            let playlistResult = null;
+
+            if (isSpotifyUrl(rawUrl)) {
+                playlistResult = await fetchSpotifyPlaylist(rawUrl, customName, updateProgress);
+            } else if (isDeezerUrl(rawUrl)) {
+                playlistResult = await fetchDeezerPlaylist(rawUrl, customName, updateProgress);
+            } else {
+                const ytId = extractYouTubePlaylistId(rawUrl);
+                if (ytId && ytId.length >= 8) {
+                    playlistResult = await fetchYouTubePlaylistFromBrowser(ytId, customName, updateProgress);
+                } else {
+                    const spotifyId = extractSpotifyPlaylistId(rawUrl);
+                    if (spotifyId && spotifyId.length >= 8) {
+                        playlistResult = await fetchSpotifyPlaylist(spotifyId, customName, updateProgress);
+                    } else {
+                        const deezerId = extractDeezerPlaylistId(rawUrl);
+                        if (deezerId && /^\d+$/.test(deezerId)) {
+                            playlistResult = await fetchDeezerPlaylist(deezerId, customName, updateProgress);
+                        } else {
+                            throw new Error('URL ou identifiant de playlist invalide. Veuillez vérifier le lien.');
+                        }
+                    }
+                }
+            }
+
+            if (!playlistResult || !playlistResult.songs || playlistResult.songs.length === 0) {
+                throw new Error('Aucun morceau trouvé dans cette playlist.');
+            }
+
+            const storageKey = `custom_${playlistResult.source}_${playlistResult.id}`;
+            const playlistObj = {
+                id: playlistResult.id,
+                name: playlistResult.name,
+                source: playlistResult.source,
+                isCustom: true,
+                songs: playlistResult.songs
+            };
+
+            saveCustomPlaylistToStorage(storageKey, playlistObj);
+            selectCustomPlaylistByKey(storageKey);
+            closeCustomPlaylistModal();
+
+        } catch (err) {
+            console.error('Playlist load error:', err);
+            if (errorEl) {
+                errorEl.textContent = err.message || 'Erreur lors du chargement de la playlist.';
+                errorEl.classList.remove('hidden');
+            }
+        } finally {
+            if (statusContainer) statusContainer.classList.add('hidden');
+            if (submitBtn) {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Charger la Playlist 🚀';
+            }
+        }
+    }
+
+    function setupCustomPlaylistModalListeners() {
+        const closeBtn = document.getElementById('mpClosePlaylistModalBtn');
+        const cancelBtn = document.getElementById('mpCancelPlaylistModalBtn');
+        const submitBtn = document.getElementById('mpSubmitCustomPlaylistBtn');
+        const modal = document.getElementById('mpCustomPlaylistModal');
+        const urlInput = document.getElementById('mpCustomPlaylistUrlInput');
+
+        if (closeBtn) closeBtn.addEventListener('click', closeCustomPlaylistModal);
+        if (cancelBtn) cancelBtn.addEventListener('click', closeCustomPlaylistModal);
+        if (submitBtn) submitBtn.addEventListener('click', handleCustomPlaylistSubmit);
+
+        if (urlInput) {
+            urlInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') handleCustomPlaylistSubmit();
+            });
+        }
+
+        if (modal) {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) closeCustomPlaylistModal();
+            });
+        }
+    }
+
     function getAvailablePlaylistsList() {
+        const result = [];
+        const seenKeys = new Set();
+
         const plObj = window.HEARDLE_PLAYLISTS || window.playlists || {};
-        const keys = Object.keys(plObj);
-        if (keys.length > 0) {
-            return keys.map(k => ({
+        Object.keys(plObj).forEach(k => {
+            seenKeys.add(k);
+            result.push({
                 key: k,
                 name: plObj[k].name || k,
-                count: plObj[k].songs ? plObj[k].songs.length : 0
-            }));
+                count: plObj[k].songs ? plObj[k].songs.length : 0,
+                isCustom: false,
+                songs: plObj[k].songs || []
+            });
+        });
+
+        if (result.length === 0) {
+            [
+                { key: 'abdoul', name: 'Abdoul', count: 499 },
+                { key: 'gustave', name: 'Gustave', count: 641 },
+                { key: 'erwan', name: 'Erwan', count: 3198 },
+                { key: 'rayane', name: 'Rayane', count: 2314 },
+                { key: 'anir', name: 'Anir', count: 312 }
+            ].forEach(p => {
+                seenKeys.add(p.key);
+                result.push({ ...p, isCustom: false, songs: [] });
+            });
         }
-        return [
-            { key: 'abdoul', name: 'Abdoul', count: 499 },
-            { key: 'gustave', name: 'Gustave', count: 641 },
-            { key: 'erwan', name: 'Erwan', count: 3198 },
-            { key: 'rayane', name: 'Rayane', count: 2314 },
-            { key: 'anir', name: 'Anir', count: 312 }
-        ];
+
+        // Custom imported playlists in localStorage
+        try {
+            const customSaved = getSavedCustomPlaylists();
+            Object.keys(customSaved).forEach(k => {
+                if (!seenKeys.has(k)) {
+                    seenKeys.add(k);
+                    const pl = customSaved[k];
+                    let icon = '⭐';
+                    if (pl.source === 'spotify') icon = '🟢';
+                    else if (pl.source === 'deezer') icon = '🟣';
+                    else if (pl.source === 'youtube') icon = '🔴';
+
+                    result.push({
+                        key: k,
+                        name: `${icon} ${pl.name || 'Playlist perso'}`,
+                        count: pl.songs ? pl.songs.length : 0,
+                        isCustom: true,
+                        songs: pl.songs || []
+                    });
+                }
+            });
+        } catch (e) {}
+
+        return result;
     }
 
     function initP2PHostRoom(data) {
@@ -639,6 +1147,8 @@
                     hostId: MP.playerId,
                     state: 'LOBBY',
                     playlistKey: data.playlistKey || 'abdoul',
+                    playlistName: data.playlistName || null,
+                    customSongs: Array.isArray(data.customSongs) && data.customSongs.length > 0 ? data.customSongs : null,
                     winningRounds: parseInt(data.winningRounds, 10) || 5,
                     currentRound: 0,
                     players: new Map([[MP.playerId, player]]),
@@ -858,6 +1368,19 @@
     }
 
     function getP2PSongs(playlistKey) {
+        if (MP.room && MP.room.customSongs && Array.isArray(MP.room.customSongs) && MP.room.customSongs.length > 0) {
+            return MP.room.customSongs;
+        }
+        if (MP.p2pRoomState && MP.p2pRoomState.customSongs && Array.isArray(MP.p2pRoomState.customSongs) && MP.p2pRoomState.customSongs.length > 0) {
+            return MP.p2pRoomState.customSongs;
+        }
+        try {
+            const customSaved = getSavedCustomPlaylists();
+            if (customSaved[playlistKey] && customSaved[playlistKey].songs) {
+                return customSaved[playlistKey].songs;
+            }
+        } catch (e) {}
+
         if (window.HEARDLE_PLAYLISTS && window.HEARDLE_PLAYLISTS[playlistKey] && window.HEARDLE_PLAYLISTS[playlistKey].songs) {
             return window.HEARDLE_PLAYLISTS[playlistKey].songs;
         }
@@ -907,6 +1430,12 @@
             case 'UPDATE_SETTINGS':
                 if (senderId !== r.hostId) return;
                 if (data.playlistKey) r.playlistKey = data.playlistKey;
+                if (data.playlistName) r.playlistName = data.playlistName;
+                if (Array.isArray(data.customSongs) && data.customSongs.length > 0) {
+                    r.customSongs = data.customSongs;
+                } else if (data.playlistKey && !data.playlistKey.startsWith('custom_')) {
+                    r.customSongs = null;
+                }
                 if (data.winningRounds) r.winningRounds = data.winningRounds;
                 MP.room = sanitizeP2PRoom(r);
                 broadcastP2P({ type: 'SETTINGS_UPDATED', room: MP.room });
@@ -1067,7 +1596,11 @@
             return;
         }
 
-        let available = songPool.filter(s => s && s.id && !r.playedSongIds.has(s.id));
+        let available = songPool.filter(s => {
+            if (!s) return false;
+            const songKey = s.id || `${normalizeText(s.artist)} - ${normalizeText(s.title)}`;
+            return (s.id || s.audioPreviewUrl || (s.title && s.artist)) && !r.playedSongIds.has(songKey);
+        });
         if (available.length === 0) {
             r.playedSongIds.clear();
             available = songPool;
@@ -1075,26 +1608,26 @@
 
         const song = available[Math.floor(Math.random() * available.length)];
         r.currentSong = song;
-        if (song && song.id) r.playedSongIds.add(song.id);
+        const songKey = song.id || `${normalizeText(song.artist)} - ${normalizeText(song.title)}`;
+        r.playedSongIds.add(songKey);
 
-        if (!song.audioPreviewUrl && song.artist && song.title) {
+        if ((!song.audioPreviewUrl || !song.id) && song.artist && song.title) {
             try {
                 const cleanA = (song.artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
                 const cleanT = (song.title || '').trim();
-                const q = `${cleanA} ${cleanT}`.trim();
-                const res = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=5`);
+                const res = await fetch(`/api/match?artist=${encodeURIComponent(cleanA)}&title=${encodeURIComponent(cleanT)}`);
                 if (res.ok) {
                     const d = await res.json();
-                    if (d && Array.isArray(d.data) && d.data.length > 0) {
-                        for (const item of d.data) {
-                            if (item.preview) {
-                                song.audioPreviewUrl = item.preview;
-                                break;
-                            }
-                        }
+                    if (d.audioPreviewUrl) {
+                        song.audioPreviewUrl = d.audioPreviewUrl;
+                    }
+                    if (d.videoId && !song.id) {
+                        song.id = d.videoId;
                     }
                 }
-            } catch (e) {}
+            } catch (e) {
+                console.warn('[P2P] Match pre-resolve error:', e);
+            }
         }
 
         r.currentRound += 1;
@@ -1204,15 +1737,27 @@
     }
 
     function sanitizeP2PRoom(r) {
-        const pl = (window.HEARDLE_PLAYLISTS && window.HEARDLE_PLAYLISTS[r.playlistKey]) 
-            || (window.playlists && window.playlists[r.playlistKey]) 
-            || null;
+        let name = r.playlistName;
+        if (!name) {
+            const pl = (window.HEARDLE_PLAYLISTS && window.HEARDLE_PLAYLISTS[r.playlistKey]) 
+                || (window.playlists && window.playlists[r.playlistKey]) 
+                || null;
+            if (pl) {
+                name = pl.name || r.playlistKey;
+            } else {
+                try {
+                    const customSaved = JSON.parse(localStorage.getItem('heardle_custom_playlists') || '{}');
+                    if (customSaved[r.playlistKey]) name = customSaved[r.playlistKey].name;
+                } catch (e) {}
+            }
+        }
         return {
             code: r.code,
             hostId: r.hostId,
             state: r.state,
             playlistKey: r.playlistKey,
-            playlistName: pl ? (pl.name || r.playlistKey) : r.playlistKey,
+            playlistName: name || 'Multijoueur',
+            customSongs: r.customSongs || (MP.room ? MP.room.customSongs : null),
             winningRounds: r.winningRounds,
             currentRound: r.currentRound,
             roundDuration: r.roundDuration,
@@ -1363,7 +1908,12 @@
                 <!-- Create Room Panel -->
                 <div class="mp-tab-panel" id="panelCreateRoom">
                     <div class="mp-form-group">
-                        <label for="mpPlaylistSelect">🎵 Playlist à jouer</label>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <label for="mpPlaylistSelect" style="margin: 0;">🎵 Playlist à jouer</label>
+                            <button type="button" class="mp-btn-import-pl" id="btnOpenImportPlHub" title="Importer une playlist Spotify, Deezer ou YouTube">
+                                ➕ Importer (Spotify / Deezer)
+                            </button>
+                        </div>
                         <select id="mpPlaylistSelect" class="mp-select">
                             ${getAvailablePlaylistsList().map(pl => `
                                 <option value="${pl.key}">${escapeHtml(pl.name)} (${pl.count} sons)</option>
@@ -1431,6 +1981,13 @@
             });
         }
 
+        const btnImportPl = document.getElementById('btnOpenImportPlHub');
+        if (btnImportPl) {
+            btnImportPl.addEventListener('click', () => {
+                openCustomPlaylistModal('mpPlaylistSelect');
+            });
+        }
+
         const tabCreate = document.getElementById('tabCreateBtn');
         const tabJoin = document.getElementById('tabJoinBtn');
         if (tabCreate && tabJoin) {
@@ -1446,6 +2003,10 @@
                 localStorage.setItem('heardle_mp_name', name);
 
                 const playlistKey = document.getElementById('mpPlaylistSelect')?.value || 'abdoul';
+                const plList = getAvailablePlaylistsList();
+                const selectedPl = plList.find(p => p.key === playlistKey);
+                const customSongs = selectedPl && selectedPl.isCustom ? selectedPl.songs : null;
+                const plName = selectedPl ? selectedPl.name.replace(/^[⭐🟢🟣🔴]\s*/, '') : playlistKey;
                 const winningRounds = parseInt(document.getElementById('mpWinningRoundsSelect')?.value, 10) || 5;
 
                 btnCreate.disabled = true;
@@ -1455,6 +2016,8 @@
                     playerName: name,
                     avatar: MP.playerAvatar,
                     playlistKey: playlistKey,
+                    playlistName: plName,
+                    customSongs: customSongs,
                     winningRounds: winningRounds
                 });
             });
@@ -1530,7 +2093,14 @@
 
                 <div class="mp-lobby-settings-box">
                     <div class="settings-col">
-                        <span class="setting-label">🎵 Playlist</span>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <span class="setting-label">🎵 Playlist</span>
+                            ${MP.isHost ? `
+                                <button type="button" class="mp-btn-import-pl-mini" id="btnOpenImportPlLobby" title="Importer une nouvelle playlist">
+                                    ➕ Importer
+                                </button>
+                            ` : ''}
+                        </div>
                         ${MP.isHost ? `
                             <select id="mpLobbyPlaylistSelect" class="mp-select compact">
                                 ${getAvailablePlaylistsList().map(pl => `
@@ -1624,12 +2194,28 @@
             });
         }
 
+        const btnImportLobby = document.getElementById('btnOpenImportPlLobby');
+        if (btnImportLobby && MP.isHost) {
+            btnImportLobby.addEventListener('click', () => {
+                openCustomPlaylistModal('mpLobbyPlaylistSelect');
+            });
+        }
+
         const playlistSelect = document.getElementById('mpLobbyPlaylistSelect');
         const winningSelect = document.getElementById('mpLobbyWinningSelect');
 
         if (playlistSelect && MP.isHost) {
             playlistSelect.addEventListener('change', (e) => {
-                send('UPDATE_SETTINGS', { playlistKey: e.target.value });
+                const key = e.target.value;
+                const plList = getAvailablePlaylistsList();
+                const selectedPl = plList.find(p => p.key === key);
+                const customSongs = selectedPl && selectedPl.isCustom ? selectedPl.songs : null;
+                const plName = selectedPl ? selectedPl.name.replace(/^[⭐🟢🟣🔴]\s*/, '') : key;
+                send('UPDATE_SETTINGS', {
+                    playlistKey: key,
+                    playlistName: plName,
+                    customSongs: customSongs
+                });
             });
         }
 
@@ -2403,6 +2989,7 @@
             loadMpYouTubeAPI();
             initTransport();
             setupReturnSoloButton();
+            setupCustomPlaylistModalListeners();
             window.addEventListener('keydown', handleGlobalKeyDown);
             renderHubView();
             checkUrlParams();

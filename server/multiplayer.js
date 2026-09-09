@@ -111,6 +111,16 @@ function calculateScore(elapsedSeconds, skips, wrongAttempts) {
 }
 
 function getRoomSongs(room) {
+    if (room.customSongs && Array.isArray(room.customSongs) && room.customSongs.length > 0) {
+        return room.customSongs;
+    }
+    try {
+        const playlistsPath = path.join(__dirname, '..', 'playlists.json');
+        if (fs.existsSync(playlistsPath)) {
+            playlists = JSON.parse(fs.readFileSync(playlistsPath, 'utf8'));
+        }
+    } catch (e) {}
+
     if (room.playlistKey && playlists[room.playlistKey] && playlists[room.playlistKey].songs && playlists[room.playlistKey].songs.length > 0) {
         return playlists[room.playlistKey].songs;
     }
@@ -237,6 +247,8 @@ class MultiplayerManager {
             hostId: ws.id,
             state: 'LOBBY', // 'LOBBY', 'PLAYING', 'ROUND_OVER', 'MATCH_OVER'
             playlistKey: data.playlistKey || defaultPlaylist,
+            playlistName: data.playlistName || null,
+            customSongs: Array.isArray(data.customSongs) && data.customSongs.length > 0 ? data.customSongs : null,
             winningRounds: parseInt(data.winningRounds, 10) || 5, // First to X wins
             currentRound: 0,
             players: new Map(),
@@ -334,6 +346,14 @@ class MultiplayerManager {
         if (data.playlistKey) {
             room.playlistKey = data.playlistKey;
         }
+        if (data.playlistName) {
+            room.playlistName = data.playlistName;
+        }
+        if (Array.isArray(data.customSongs) && data.customSongs.length > 0) {
+            room.customSongs = data.customSongs;
+        } else if (data.playlistKey && !data.playlistKey.startsWith('custom_')) {
+            room.customSongs = null;
+        }
         if (data.winningRounds) {
             room.winningRounds = Math.max(1, Math.min(20, parseInt(data.winningRounds, 10) || 5));
         }
@@ -379,7 +399,11 @@ class MultiplayerManager {
         }
 
         // Pick unplayed song if available
-        let availableSongs = songPool.filter(s => s && s.id && !room.playedSongIds.has(s.id));
+        let availableSongs = songPool.filter(s => {
+            if (!s) return false;
+            const songKey = s.id || `${normalizeText(s.artist)} - ${normalizeText(s.title)}`;
+            return (s.id || s.audioPreviewUrl || (s.title && s.artist)) && !room.playedSongIds.has(songKey);
+        });
         if (availableSongs.length === 0) {
             room.playedSongIds.clear();
             availableSongs = songPool;
@@ -387,9 +411,8 @@ class MultiplayerManager {
 
         const selectedSong = availableSongs[Math.floor(Math.random() * availableSongs.length)];
         room.currentSong = selectedSong;
-        if (selectedSong && selectedSong.id) {
-            room.playedSongIds.add(selectedSong.id);
-        }
+        const songKey = selectedSong.id || `${normalizeText(selectedSong.artist)} - ${normalizeText(selectedSong.title)}`;
+        room.playedSongIds.add(songKey);
 
         // Pre-resolve audio preview to guarantee 100% playable audio even if YouTube embed is blocked
         if (!selectedSong.audioPreviewUrl && selectedSong.artist && selectedSong.title) {
@@ -696,12 +719,22 @@ class MultiplayerManager {
     }
 
     sanitizeRoomForClient(room) {
+        let name = room.playlistName;
+        if (!name) {
+            if (room.customSongs && room.customSongs.length > 0) {
+                name = 'Playlist personnalisée';
+            } else {
+                name = playlists[room.playlistKey] ? playlists[room.playlistKey].name : 'Playlist par défaut';
+            }
+        }
+
         return {
             code: room.code,
             hostId: room.hostId,
             state: room.state,
             playlistKey: room.playlistKey,
-            playlistName: playlists[room.playlistKey] ? playlists[room.playlistKey].name : 'Playlist par défaut',
+            playlistName: name,
+            customSongs: room.customSongs || null,
             winningRounds: room.winningRounds,
             currentRound: room.currentRound,
             roundDuration: room.roundDuration,

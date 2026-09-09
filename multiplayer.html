@@ -1169,6 +1169,354 @@
             font-style: italic;
         }
 
+        /* Playlist Import / Modal Styles */
+        .mp-btn-import-pl {
+            background: #282828;
+            border: 1px solid #444;
+            color: #1db954;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11.5px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .mp-btn-import-pl:hover {
+            background: #333;
+            border-color: #1db954;
+            transform: scale(1.02);
+        }
+
+        .mp-btn-import-pl-mini {
+            background: #282828;
+            border: 1px solid #444;
+            color: #1db954;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .mp-btn-import-pl-mini:hover {
+            background: #333;
+            border-color: #1db954;
+        }
+
+        /* Modal Backdrop & Dialog */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9000;
+            padding: 20px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        .modal-backdrop.hidden {
+            display: none;
+        }
+
+        .modal-dialog {
+            background: #181818;
+            border: 1px solid #333;
+            border-radius: 12px;
+            width: 100%;
+            max-width: 540px;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.85);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            animation: slideUp 0.25s ease-out;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid #282828;
+            background: #1e1e1e;
+        }
+
+        .modal-header h3 {
+            font-size: 17px;
+            font-weight: 700;
+            color: #fff;
+            margin: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: #888;
+            font-size: 20px;
+            cursor: pointer;
+            padding: 4px;
+            line-height: 1;
+            transition: color 0.2s;
+        }
+
+        .modal-close:hover {
+            color: #fff;
+        }
+
+        .modal-body {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-description {
+            font-size: 13px;
+            color: #aaa;
+            line-height: 1.5;
+            margin: 0;
+        }
+
+        .modal-form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .modal-form-group label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #ccc;
+        }
+
+        .label-optional {
+            color: #777;
+            font-weight: normal;
+        }
+
+        .modal-form-group input {
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 8px;
+            padding: 11px 14px;
+            color: #fff;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .modal-form-group input:focus {
+            border-color: #1db954;
+        }
+
+        .fetch-status-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #202020;
+            border: 1px solid #333;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
+        .fetch-status-spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #444;
+            border-top-color: #1db954;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            flex-shrink: 0;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .fetch-status-text {
+            font-size: 13px;
+            color: #1db954;
+            font-weight: 500;
+        }
+
+        .modal-error-text {
+            background: rgba(239, 68, 68, 0.15);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 6px;
+        }
+
+        .modal-btn {
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: opacity 0.2s;
+        }
+
+        .modal-btn:hover:not(:disabled) {
+            opacity: 0.85;
+        }
+
+        .modal-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .modal-btn-cancel {
+            background: #2a2a2a;
+            color: #ccc;
+        }
+
+        .modal-btn-primary {
+            background: #1db954;
+            color: #000;
+            font-weight: 700;
+        }
+
+        /* Saved Playlists list in modal */
+        .saved-playlists-section {
+            border-top: 1px solid #2a2a2a;
+            padding-top: 16px;
+            margin-top: 4px;
+        }
+
+        .saved-playlists-section h4 {
+            font-size: 13px;
+            color: #aaa;
+            margin: 0 0 10px 0;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .saved-playlists-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            max-height: 160px;
+            overflow-y: auto;
+        }
+
+        .saved-playlist-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #222;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+
+        .saved-playlist-info {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-right: 8px;
+        }
+
+        .saved-playlist-name {
+            color: #fff;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .playlist-badge {
+            display: inline-block;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .spotify-badge {
+            background: rgba(29, 185, 84, 0.2);
+            color: #1db954;
+            border: 1px solid rgba(29, 185, 84, 0.4);
+        }
+
+        .deezer-badge {
+            background: rgba(162, 56, 255, 0.2);
+            color: #c084fc;
+            border: 1px solid rgba(162, 56, 255, 0.4);
+        }
+
+        .yt-badge {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+
+        .saved-playlist-count {
+            color: #777;
+            font-size: 11px;
+            margin-top: 2px;
+        }
+
+        .saved-playlist-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .saved-playlist-play-btn {
+            background: #1db954;
+            color: #000;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+        }
+
+        .saved-playlist-delete-btn {
+            background: none;
+            border: none;
+            color: #888;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 4px;
+            border-radius: 4px;
+        }
+
+        .saved-playlist-delete-btn:hover {
+            color: #ef4444;
+            background: rgba(239, 68, 68, 0.1);
+        }
+
         /* Toast Notifications */
         .mp-toast-container {
             position: fixed;
@@ -1236,6 +1584,53 @@
         <main id="mpDynamicArea">
             <!-- Hub, Lobby, In-Game Arena or Round Over is injected here -->
         </main>
+    </div>
+
+    <!-- Modal for adding/managing custom playlists in Multiplayer -->
+    <div class="modal-backdrop hidden" id="mpCustomPlaylistModal">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3>🎵 Importer une Playlist</h3>
+                <button type="button" class="modal-close" id="mpClosePlaylistModalBtn" title="Fermer">✕</button>
+            </div>
+
+            <div class="modal-body">
+                <p class="modal-description">
+                    Collez le lien d'une playlist publique <strong>Spotify</strong>, <strong>Deezer</strong> ou <strong>YouTube</strong> pour jouer dessus en multijoueur avec vos amis !
+                </p>
+
+                <div class="modal-form-group">
+                    <label for="mpCustomPlaylistUrlInput">Lien de la Playlist (Spotify / Deezer / YouTube)</label>
+                    <input type="text" id="mpCustomPlaylistUrlInput" placeholder="https://open.spotify.com/playlist/... ou https://www.deezer.com/playlist/..." autocomplete="off">
+                </div>
+
+                <div class="modal-form-group">
+                    <label for="mpCustomPlaylistNameInput">Nom personnalisé <span class="label-optional">(optionnel)</span></label>
+                    <input type="text" id="mpCustomPlaylistNameInput" placeholder="Ex: Ma Sélection Rap 2024" autocomplete="off">
+                </div>
+
+                <!-- Live Progress indicator -->
+                <div class="fetch-status-container hidden" id="mpFetchStatusContainer">
+                    <div class="fetch-status-spinner"></div>
+                    <div class="fetch-status-text" id="mpFetchStatusText">Chargement des morceaux...</div>
+                </div>
+
+                <div class="modal-error-text hidden" id="mpModalErrorText"></div>
+
+                <div class="modal-actions">
+                    <button type="button" class="modal-btn modal-btn-cancel" id="mpCancelPlaylistModalBtn">Annuler</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="mpSubmitCustomPlaylistBtn">Charger la Playlist 🚀</button>
+                </div>
+
+                <!-- Saved Custom Playlists Section -->
+                <div class="saved-playlists-section" id="mpSavedPlaylistsSection">
+                    <h4>Vos Playlists Enregistrées</h4>
+                    <div class="saved-playlists-list" id="mpSavedPlaylistsList">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- YouTube Config -->
