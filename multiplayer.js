@@ -464,7 +464,7 @@
             btnReturnSolo.addEventListener('click', (e) => {
                 e.preventDefault();
                 if (MP.room && (MP.room.state === 'PLAYING' || MP.room.state === 'ROUND_OVER')) {
-                    if (!confirm('Voulez-vous vraiment quitter la partie multijoueur en cours et retourner au mode Solo ?')) {
+                    if (!confirm('Are you sure you want to leave the multiplayer match and return to Solo mode?')) {
                         return;
                     }
                 }
@@ -676,16 +676,16 @@
     }
 
     async function fetchSpotifyPlaylist(urlOrId, customName = '', onProgress = null) {
-        if (onProgress) onProgress('Chargement de la playlist Spotify...');
+        if (onProgress) onProgress('Loading Spotify playlist...');
         const endpoint = `/api/spotify?url=${encodeURIComponent(urlOrId)}`;
         const res = await fetch(endpoint);
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || `Erreur HTTP ${res.status}: Impossible de charger la playlist Spotify`);
+            throw new Error(errData.error || `HTTP Error ${res.status}: Failed to load Spotify playlist`);
         }
         const data = await res.json();
         if (!data.songs || data.songs.length === 0) {
-            throw new Error('Aucun morceau trouvé dans cette playlist Spotify.');
+            throw new Error('No songs found in this Spotify playlist.');
         }
         return {
             id: data.id,
@@ -696,16 +696,16 @@
     }
 
     async function fetchDeezerPlaylist(urlOrId, customName = '', onProgress = null) {
-        if (onProgress) onProgress('Chargement de la playlist Deezer...');
+        if (onProgress) onProgress('Loading Deezer playlist...');
         const endpoint = `/api/deezer?url=${encodeURIComponent(urlOrId)}`;
         const res = await fetch(endpoint);
         if (!res.ok) {
             const errData = await res.json().catch(() => ({}));
-            throw new Error(errData.error || `Erreur HTTP ${res.status}: Impossible de charger la playlist Deezer`);
+            throw new Error(errData.error || `HTTP Error ${res.status}: Failed to load Deezer playlist`);
         }
         const data = await res.json();
         if (!data.songs || data.songs.length === 0) {
-            throw new Error('Aucun morceau trouvé dans cette playlist Deezer.');
+            throw new Error('No songs found in this Deezer playlist.');
         }
         return {
             id: data.id,
@@ -738,7 +738,7 @@
 
         do {
             pageCount++;
-            if (onProgress) onProgress(`Chargement page ${pageCount}... (${allSongs.length} morceaux)`);
+            if (onProgress) onProgress(`Loading page ${pageCount}... (${allSongs.length} songs)`);
             const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&maxResults=50&playlistId=${encodeURIComponent(playlistId)}&key=${encodeURIComponent(apiKey)}${nextPageToken ? '&pageToken=' + encodeURIComponent(nextPageToken) : ''}`;
             const res = await fetch(url);
             if (!res.ok) {
@@ -785,7 +785,7 @@
         } while (nextPageToken && pageCount < 60);
 
         if (allSongs.length === 0) {
-            throw new Error('Aucun morceau lisible trouvé dans cette playlist YouTube.');
+            throw new Error('No playable songs found in this YouTube playlist.');
         }
 
         return {
@@ -813,7 +813,7 @@
         if (statusContainer) statusContainer.classList.add('hidden');
         if (urlInput) urlInput.value = '';
         if (nameInput) nameInput.value = '';
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Charger la Playlist 🚀'; }
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Load Playlist 🚀'; }
 
         renderSavedPlaylistsInModal();
         modal.classList.remove('hidden');
@@ -833,7 +833,7 @@
         const keys = Object.keys(saved);
 
         if (keys.length === 0) {
-            container.innerHTML = `<div style="color: #666; font-size: 12px; text-align: center; padding: 8px;">Aucune playlist personnalisée enregistrée.</div>`;
+            container.innerHTML = `<div style="color: #666; font-size: 12px; text-align: center; padding: 8px;">No custom playlists saved yet.</div>`;
             return;
         }
 
@@ -847,11 +847,11 @@
                 <div class="saved-playlist-row">
                     <div class="saved-playlist-info">
                         <span class="saved-playlist-name">${badge} ${escapeHtml(pl.name)}</span>
-                        <span class="saved-playlist-count">${pl.songs ? pl.songs.length : 0} morceaux</span>
+                        <span class="saved-playlist-count">${pl.songs ? pl.songs.length : 0} songs</span>
                     </div>
                     <div class="saved-playlist-actions">
-                        <button type="button" class="saved-playlist-play-btn" data-key="${key}">Utiliser</button>
-                        <button type="button" class="saved-playlist-delete-btn" data-key="${key}" title="Supprimer la playlist">🗑️</button>
+                        <button type="button" class="saved-playlist-play-btn" data-key="${key}">Use</button>
+                        <button type="button" class="saved-playlist-delete-btn" data-key="${key}" title="Delete playlist">🗑️</button>
                     </div>
                 </div>
             `;
@@ -871,7 +871,7 @@
                 deleteCustomPlaylistFromStorage(key);
                 renderSavedPlaylistsInModal();
                 refreshPlaylistSelectOptions();
-                showToast('Playlist supprimée avec succès.');
+                showToast('Playlist deleted successfully.');
             });
         });
     }
@@ -889,9 +889,9 @@
                 playlistName: pl.name,
                 customSongs: pl.songs
             });
-            showToast(`Playlist "${pl.name}" sélectionnée pour le salon !`, 'success');
+            showToast(`Playlist "${pl.name}" selected for room!`, 'success');
         } else {
-            showToast(`Playlist "${pl.name}" sélectionnée !`, 'success');
+            showToast(`Playlist "${pl.name}" selected!`, 'success');
         }
     }
 
@@ -903,7 +903,7 @@
         const buildOptionsHtml = (currentVal) => {
             return playlists.map(pl => {
                 const isSelected = selectedKey ? (pl.key === selectedKey) : (pl.key === currentVal);
-                return `<option value="${pl.key}" ${isSelected ? 'selected' : ''}>${escapeHtml(pl.name)} (${pl.count} sons)</option>`;
+                return `<option value="${pl.key}" ${isSelected ? 'selected' : ''}>${escapeHtml(pl.name)} (${pl.count} songs)</option>`;
             }).join('');
         };
 
@@ -924,7 +924,7 @@
 
         if (!rawUrl) {
             if (errorEl) {
-                errorEl.textContent = 'Veuillez coller un lien Spotify, Deezer ou YouTube.';
+                errorEl.textContent = 'Please enter a Spotify, Deezer or YouTube link.';
                 errorEl.classList.remove('hidden');
             }
             return;
@@ -934,7 +934,7 @@
         if (statusContainer) statusContainer.classList.remove('hidden');
         if (submitBtn) {
             submitBtn.disabled = true;
-            submitBtn.textContent = 'Chargement en cours...';
+            submitBtn.textContent = 'Loading...';
         }
 
         const updateProgress = (msg) => {
@@ -961,14 +961,14 @@
                         if (deezerId && /^\d+$/.test(deezerId)) {
                             playlistResult = await fetchDeezerPlaylist(deezerId, customName, updateProgress);
                         } else {
-                            throw new Error('URL ou identifiant de playlist invalide. Veuillez vérifier le lien.');
+                            throw new Error('Invalid playlist URL or ID. Please check the link.');
                         }
                     }
                 }
             }
 
             if (!playlistResult || !playlistResult.songs || playlistResult.songs.length === 0) {
-                throw new Error('Aucun morceau trouvé dans cette playlist.');
+                throw new Error('No songs found in this playlist.');
             }
 
             const storageKey = `custom_${playlistResult.source}_${playlistResult.id}`;
@@ -987,14 +987,14 @@
         } catch (err) {
             console.error('Playlist load error:', err);
             if (errorEl) {
-                errorEl.textContent = err.message || 'Erreur lors du chargement de la playlist.';
+                errorEl.textContent = err.message || 'Error loading playlist.';
                 errorEl.classList.remove('hidden');
             }
         } finally {
             if (statusContainer) statusContainer.classList.add('hidden');
             if (submitBtn) {
                 submitBtn.disabled = false;
-                submitBtn.textContent = 'Charger la Playlist 🚀';
+                submitBtn.textContent = 'Load Playlist 🚀';
             }
         }
     }
@@ -1066,7 +1066,7 @@
 
                     result.push({
                         key: k,
-                        name: `${icon} ${pl.name || 'Playlist perso'}`,
+                        name: `${icon} ${pl.name || 'Custom Playlist'}`,
                         count: pl.songs ? pl.songs.length : 0,
                         isCustom: true,
                         songs: pl.songs || []
@@ -1079,16 +1079,16 @@
     }
 
     function initP2PHostRoom(data) {
-        showToast('Création du salon en cours...', 'info');
+        showToast('Creating room...', 'info');
         const roomCode = generateCode();
         const peerId = 'heardle-v2-' + roomCode.toLowerCase();
         const btnCreate = document.getElementById('btnCreateRoomSubmit');
 
         if (typeof Peer === 'undefined') {
-            showToast('Chargement de PeerJS... Veuillez réessayer dans 2 secondes.', 'error');
+            showToast('Loading PeerJS... Please try again in 2 seconds.', 'error');
             if (btnCreate) {
                 btnCreate.disabled = false;
-                btnCreate.textContent = 'Créer le salon privé 🚀';
+                btnCreate.textContent = 'Create Private Room 🚀';
             }
             return;
         }
@@ -1102,9 +1102,9 @@
                 if (!MP.p2pRoomState) {
                     if (btnCreate) {
                         btnCreate.disabled = false;
-                        btnCreate.textContent = 'Créer le salon privé 🚀';
+                        btnCreate.textContent = 'Create Private Room 🚀';
                     }
-                    showToast('Délai d\'attente dépassé pour la création du salon. Veuillez réessayer.', 'error');
+                    showToast('Room creation timed out. Please try again.', 'error');
                 }
             }, 8000);
 
@@ -1126,7 +1126,7 @@
 
                 const player = {
                     id: MP.playerId,
-                    name: (data.playerName || 'Hôte').trim(),
+                    name: (data.playerName || 'Host').trim(),
                     avatar: data.avatar || MP.playerAvatar,
                     isHost: true,
                     score: 0,
@@ -1160,7 +1160,7 @@
 
                 MP.room = sanitizeP2PRoom(MP.p2pRoomState);
                 renderLobbyView();
-                showToast(`Salon ${roomCode} créé avec succès !`, 'success');
+                showToast(`Room ${roomCode} created successfully!`, 'success');
             });
 
             MP.peer.on('connection', (conn) => {
@@ -1173,21 +1173,21 @@
                 console.error('PeerJS Host Error:', err);
                 if (btnCreate) {
                     btnCreate.disabled = false;
-                    btnCreate.textContent = 'Créer le salon privé 🚀';
+                    btnCreate.textContent = 'Create Private Room 🚀';
                 }
                 if (err.type === 'unavailable-id') {
                     initP2PHostRoom(data);
                 } else {
-                    showToast('Erreur de connexion P2P : ' + err.message, 'error');
+                    showToast('P2P connection error: ' + err.message, 'error');
                 }
             });
         } catch (e) {
             console.error('PeerJS init failed:', e);
             if (btnCreate) {
                 btnCreate.disabled = false;
-                btnCreate.textContent = 'Créer le salon privé 🚀';
+                btnCreate.textContent = 'Create Private Room 🚀';
             }
-            showToast('Erreur lors de la création du salon P2P.', 'error');
+            showToast('Error creating P2P room.', 'error');
         }
     }
 
@@ -1205,7 +1205,7 @@
 
                 const guest = {
                     id: guestId,
-                    name: (data.playerName || 'Joueur').trim(),
+                    name: (data.playerName || 'Player').trim(),
                     avatar: data.avatar || '🎵',
                     isHost: false,
                     score: 0,
@@ -1237,7 +1237,7 @@
                 }, guestId);
 
                 renderLobbyPlayers();
-                showToast(`👋 ${guest.name} a rejoint le salon !`);
+                showToast(`👋 ${guest.name} joined the room!`);
             } else {
                 handleP2PHostAction(guestId, data);
             }
@@ -1253,27 +1253,27 @@
                 broadcastP2P({
                     type: 'PLAYER_LEFT',
                     playerId: guestId,
-                    playerName: leavingPlayer ? leavingPlayer.name : 'Un joueur',
+                    playerName: leavingPlayer ? leavingPlayer.name : 'A player',
                     room: MP.room
                 });
 
                 renderLobbyPlayers();
-                showToast(`🚪 ${leavingPlayer ? leavingPlayer.name : 'Un joueur'} a quitté.`);
+                showToast(`🚪 ${leavingPlayer ? leavingPlayer.name : 'A player'} left.`);
             }
         });
     }
 
     function initP2PGuestJoin(data) {
-        showToast('Connexion au salon en cours...', 'info');
+        showToast('Connecting to room...', 'info');
         const roomCode = (data.roomCode || '').toUpperCase().trim();
         const hostPeerId = 'heardle-v2-' + roomCode.toLowerCase();
         const btnJoin = document.getElementById('btnJoinRoomSubmit');
 
         if (typeof Peer === 'undefined') {
-            showToast('Chargement de PeerJS... Veuillez réessayer dans 2 secondes.', 'error');
+            showToast('Loading PeerJS... Please try again in 2 seconds.', 'error');
             if (btnJoin) {
                 btnJoin.disabled = false;
-                btnJoin.textContent = 'Rejoindre la partie 🎮';
+                btnJoin.textContent = 'Join Game 🎮';
             }
             return;
         }
@@ -1287,9 +1287,9 @@
                 if (!MP.room) {
                     if (btnJoin) {
                         btnJoin.disabled = false;
-                        btnJoin.textContent = 'Rejoindre la partie 🎮';
+                        btnJoin.textContent = 'Join Game 🎮';
                     }
-                    showToast('Délai d\'attente dépassé. Salon introuvable ou inactif.', 'error');
+                    showToast('Connection timed out. Room not found or inactive.', 'error');
                 }
             }, 8000);
 
@@ -1324,7 +1324,7 @@
                 });
 
                 conn.on('close', () => {
-                    showToast('Déconnecté du salon (l\'hôte a quitté).', 'error');
+                    showToast('Disconnected from room (host has left).', 'error');
                     MP.room = null;
                     renderHubView();
                 });
@@ -1334,9 +1334,9 @@
                     console.error('Guest connection error:', err);
                     if (btnJoin) {
                         btnJoin.disabled = false;
-                        btnJoin.textContent = 'Rejoindre la partie 🎮';
+                        btnJoin.textContent = 'Join Game 🎮';
                     }
-                    showToast('Impossible de rejoindre le salon : ' + err.message, 'error');
+                    showToast('Could not join room: ' + err.message, 'error');
                 });
             });
 
@@ -1345,17 +1345,17 @@
                 console.error('PeerJS Guest Error:', err);
                 if (btnJoin) {
                     btnJoin.disabled = false;
-                    btnJoin.textContent = 'Rejoindre la partie 🎮';
+                    btnJoin.textContent = 'Join Game 🎮';
                 }
-                showToast('Erreur : Salon introuvable ou code incorrect.', 'error');
+                showToast('Error: Room not found or invalid code.', 'error');
             });
         } catch (e) {
             console.error('Guest join failed:', e);
             if (btnJoin) {
                 btnJoin.disabled = false;
-                btnJoin.textContent = 'Rejoindre la partie 🎮';
+                btnJoin.textContent = 'Join Game 🎮';
             }
-            showToast('Erreur lors de la connexion au salon.', 'error');
+            showToast('Error connecting to room.', 'error');
         }
     }
 
@@ -1592,7 +1592,7 @@
         const songPool = getP2PSongs(r.playlistKey);
 
         if (!songPool || songPool.length === 0) {
-            showToast('Aucun son trouvé dans cette playlist.', 'error');
+            showToast('No songs found in this playlist.', 'error');
             return;
         }
 
@@ -1756,7 +1756,7 @@
             hostId: r.hostId,
             state: r.state,
             playlistKey: r.playlistKey,
-            playlistName: name || 'Multijoueur',
+            playlistName: name || 'Multiplayer',
             customSongs: r.customSongs || (MP.room ? MP.room.customSongs : null),
             winningRounds: r.winningRounds,
             currentRound: r.currentRound,
@@ -1791,14 +1791,14 @@
             case 'PLAYER_JOINED':
                 MP.room = data.room;
                 renderLobbyPlayers();
-                showToast(`👋 ${data.player.name} a rejoint la partie !`);
+                showToast(`👋 ${data.player.name} joined the game!`);
                 break;
 
             case 'PLAYER_LEFT':
                 MP.room = data.room;
                 MP.isHost = (data.room.hostId === MP.playerId);
                 renderLobbyPlayers();
-                showToast(`🚪 ${data.playerName} a quitté le salon.`);
+                showToast(`🚪 ${data.playerName} left the room.`);
                 break;
 
             case 'SETTINGS_UPDATED':
@@ -1821,7 +1821,7 @@
             case 'PLAYER_GUESSED':
                 MP.room = data.room;
                 updateLiveLeaderboard();
-                showToast(`🎯 ${data.playerName} a trouvé en ${data.guessTime}s (+${data.points} pts) !`, 'success');
+                showToast(`🎯 ${data.playerName} guessed in ${data.guessTime}s (+${data.points} pts)!`, 'success');
                 break;
 
             case 'PLAYER_ATTEMPT':
@@ -1846,7 +1846,7 @@
                 MP.currentRoundData = null;
                 MP.room = data.room;
                 renderLobbyView();
-                showToast('🔄 La partie a été réinitialisée par l\'hôte.');
+                showToast('🔄 Game was restarted by the host.');
                 break;
 
             case 'ERROR':
@@ -1862,7 +1862,7 @@
             dot.className = connected ? 'connection-dot online' : 'connection-dot offline';
         }
         if (text) {
-            text.textContent = connected ? (MP.transport === 'webrtc' ? 'P2P Connecté' : 'En ligne') : 'Hors ligne';
+            text.textContent = connected ? (MP.transport === 'webrtc' ? 'P2P Connected' : 'Online') : 'Offline';
         }
     }
 
@@ -1882,18 +1882,18 @@
             <div class="mp-hub-card">
                 <div class="mp-hub-header">
                     <div class="mp-hub-icon">👥</div>
-                    <h2>Partie Multijoueur Privée</h2>
-                    <p>Affrontez vos amis en temps réel sur la même musique. Le plus rapide gagne un maximum de points !</p>
+                    <h2>Private Multiplayer Game</h2>
+                    <p>Play against friends in real-time on the same music track. The fastest guess earns maximum points!</p>
                 </div>
 
                 <div class="mp-player-profile-box">
-                    <label>Votre Profil</label>
+                    <label>Your Profile</label>
                     <div class="mp-profile-row">
-                        <div class="mp-avatar-selector" id="mpAvatarPickerBtn" title="Changer d'avatar">
+                        <div class="mp-avatar-selector" id="mpAvatarPickerBtn" title="Change avatar">
                             <span id="mpCurrentAvatar">${MP.playerAvatar}</span>
                             <div class="avatar-edit-badge">✏️</div>
                         </div>
-                        <input type="text" id="mpPlayerNameInput" class="mp-input" placeholder="Entrez votre pseudo..." value="${escapeHtml(MP.playerName)}" maxlength="20" />
+                        <input type="text" id="mpPlayerNameInput" class="mp-input" placeholder="Enter your nickname..." value="${escapeHtml(MP.playerName)}" maxlength="20" />
                     </div>
                     <div class="avatar-dropdown hidden" id="mpAvatarDropdown">
                         ${AVATARS.map(av => `<button type="button" class="avatar-btn ${av === MP.playerAvatar ? 'selected' : ''}" data-avatar="${av}">${av}</button>`).join('')}
@@ -1901,50 +1901,50 @@
                 </div>
 
                 <div class="mp-hub-tabs">
-                    <button type="button" class="mp-tab-btn active" id="tabCreateBtn">Créer un salon</button>
-                    <button type="button" class="mp-tab-btn" id="tabJoinBtn">Rejoindre un salon</button>
+                    <button type="button" class="mp-tab-btn active" id="tabCreateBtn">Create a Room</button>
+                    <button type="button" class="mp-tab-btn" id="tabJoinBtn">Join a Room</button>
                 </div>
 
                 <!-- Create Room Panel -->
                 <div class="mp-tab-panel" id="panelCreateRoom">
                     <div class="mp-form-group">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <label for="mpPlaylistSelect" style="margin: 0;">🎵 Playlist à jouer</label>
-                            <button type="button" class="mp-btn-import-pl" id="btnOpenImportPlHub" title="Importer une playlist Spotify, Deezer ou YouTube">
-                                ➕ Importer (Spotify / Deezer)
+                            <label for="mpPlaylistSelect" style="margin: 0;">🎵 Playlist to Play</label>
+                            <button type="button" class="mp-btn-import-pl" id="btnOpenImportPlHub" title="Import Spotify, Deezer or YouTube playlist">
+                                ➕ Import (Spotify / Deezer)
                             </button>
                         </div>
                         <select id="mpPlaylistSelect" class="mp-select">
                             ${getAvailablePlaylistsList().map(pl => `
-                                <option value="${pl.key}">${escapeHtml(pl.name)} (${pl.count} sons)</option>
+                                <option value="${pl.key}">${escapeHtml(pl.name)} (${pl.count} songs)</option>
                             `).join('')}
                         </select>
                     </div>
 
                     <div class="mp-form-group">
-                        <label for="mpWinningRoundsSelect">🏆 Nombre de manches gagnantes</label>
+                        <label for="mpWinningRoundsSelect">🏆 Number of Winning Rounds</label>
                         <select id="mpWinningRoundsSelect" class="mp-select">
-                            <option value="3">Premier à 3 manches</option>
-                            <option value="5" selected>Premier à 5 manches (Classique)</option>
-                            <option value="7">Premier à 7 manches</option>
-                            <option value="10">Premier à 10 manches (Marathon)</option>
+                            <option value="3">First to 3 rounds</option>
+                            <option value="5" selected>First to 5 rounds (Classic)</option>
+                            <option value="7">First to 7 rounds</option>
+                            <option value="10">First to 10 rounds (Marathon)</option>
                         </select>
                     </div>
 
                     <button type="button" class="mp-action-btn primary" id="btnCreateRoomSubmit">
-                        Créer le salon privé 🚀
+                        Create Private Room 🚀
                     </button>
                 </div>
 
                 <!-- Join Room Panel -->
                 <div class="mp-tab-panel hidden" id="panelJoinRoom">
                     <div class="mp-form-group">
-                        <label for="mpJoinCodeInput">🔑 Code du salon (6 lettres)</label>
-                        <input type="text" id="mpJoinCodeInput" class="mp-input code-input" placeholder="Ex: HEARDL" maxlength="6" value="${MP.pendingRoomCodeFromUrl || ''}" />
+                        <label for="mpJoinCodeInput">🔑 Room Code (6 letters)</label>
+                        <input type="text" id="mpJoinCodeInput" class="mp-input code-input" placeholder="e.g. HEARDL" maxlength="6" value="${MP.pendingRoomCodeFromUrl || ''}" />
                     </div>
 
                     <button type="button" class="mp-action-btn primary" id="btnJoinRoomSubmit">
-                        Rejoindre la partie 🎮
+                        Join Game 🎮
                     </button>
                 </div>
             </div>
@@ -1998,7 +1998,7 @@
         const btnCreate = document.getElementById('btnCreateRoomSubmit');
         if (btnCreate) {
             btnCreate.addEventListener('click', () => {
-                const name = (document.getElementById('mpPlayerNameInput')?.value || '').trim() || 'Hôte';
+                const name = (document.getElementById('mpPlayerNameInput')?.value || '').trim() || 'Host';
                 MP.playerName = name;
                 localStorage.setItem('heardle_mp_name', name);
 
@@ -2010,7 +2010,7 @@
                 const winningRounds = parseInt(document.getElementById('mpWinningRoundsSelect')?.value, 10) || 5;
 
                 btnCreate.disabled = true;
-                btnCreate.textContent = 'Création en cours...';
+                btnCreate.textContent = 'Creating...';
 
                 send('CREATE_ROOM', {
                     playerName: name,
@@ -2026,18 +2026,18 @@
         const btnJoin = document.getElementById('btnJoinRoomSubmit');
         if (btnJoin) {
             btnJoin.addEventListener('click', () => {
-                const name = (document.getElementById('mpPlayerNameInput')?.value || '').trim() || 'Joueur';
+                const name = (document.getElementById('mpPlayerNameInput')?.value || '').trim() || 'Player';
                 MP.playerName = name;
                 localStorage.setItem('heardle_mp_name', name);
 
                 const code = (document.getElementById('mpJoinCodeInput')?.value || '').trim().toUpperCase();
                 if (!code || code.length < 3) {
-                    showToast('Veuillez saisir un code de salon valide.', 'error');
+                    showToast('Please enter a valid room code.', 'error');
                     return;
                 }
 
                 btnJoin.disabled = true;
-                btnJoin.textContent = 'Connexion...';
+                btnJoin.textContent = 'Connecting...';
 
                 send('JOIN_ROOM', {
                     roomCode: code,
@@ -2080,13 +2080,13 @@
             <div class="mp-lobby-card">
                 <div class="mp-lobby-header">
                     <div class="room-code-badge">
-                        <span class="label">SALON PRIVÉ</span>
+                        <span class="label">PRIVATE ROOM</span>
                         <span class="code">${MP.room.code}</span>
                     </div>
                     <div class="share-link-row">
                         <input type="text" class="mp-share-url-input" value="${shareUrl}" readonly id="mpShareUrlInput" />
                         <button type="button" class="mp-copy-btn" id="mpCopyLinkBtn">
-                            📋 Copier le lien
+                            📋 Copy Link
                         </button>
                     </div>
                 </div>
@@ -2096,8 +2096,8 @@
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
                             <span class="setting-label">🎵 Playlist</span>
                             ${MP.isHost ? `
-                                <button type="button" class="mp-btn-import-pl-mini" id="btnOpenImportPlLobby" title="Importer une nouvelle playlist">
-                                    ➕ Importer
+                                <button type="button" class="mp-btn-import-pl-mini" id="btnOpenImportPlLobby" title="Import a new playlist">
+                                    ➕ Import
                                 </button>
                             ` : ''}
                         </div>
@@ -2112,38 +2112,38 @@
                         `}
                     </div>
                     <div class="settings-col">
-                        <span class="setting-label">🏆 Manches gagnantes</span>
+                        <span class="setting-label">🏆 Winning Rounds</span>
                         ${MP.isHost ? `
                             <select id="mpLobbyWinningSelect" class="mp-select compact">
-                                <option value="3" ${MP.room.winningRounds === 3 ? 'selected' : ''}>3 manches</option>
-                                <option value="5" ${MP.room.winningRounds === 5 ? 'selected' : ''}>5 manches</option>
-                                <option value="7" ${MP.room.winningRounds === 7 ? 'selected' : ''}>7 manches</option>
-                                <option value="10" ${MP.room.winningRounds === 10 ? 'selected' : ''}>10 manches</option>
+                                <option value="3" ${MP.room.winningRounds === 3 ? 'selected' : ''}>3 rounds</option>
+                                <option value="5" ${MP.room.winningRounds === 5 ? 'selected' : ''}>5 rounds</option>
+                                <option value="7" ${MP.room.winningRounds === 7 ? 'selected' : ''}>7 rounds</option>
+                                <option value="10" ${MP.room.winningRounds === 10 ? 'selected' : ''}>10 rounds</option>
                             </select>
                         ` : `
-                            <span class="setting-val">Premier à ${MP.room.winningRounds} points</span>
+                            <span class="setting-val">First to ${MP.room.winningRounds} rounds</span>
                         `}
                     </div>
                 </div>
 
                 <div class="mp-lobby-players-section">
-                    <h3>Joueurs connectés (<span id="mpPlayerCount">${MP.room.players.length}</span>/12)</h3>
+                    <h3>Connected Players (<span id="mpPlayerCount">${MP.room.players.length}</span>/12)</h3>
                     <div class="mp-players-grid" id="mpLobbyPlayersGrid"></div>
                 </div>
 
                 <div class="mp-lobby-footer">
                     <button type="button" class="mp-action-btn secondary" id="mpLeaveRoomBtn">
-                        Quitter le salon
+                        Leave Room
                     </button>
 
                     ${MP.isHost ? `
                         <button type="button" class="mp-action-btn primary large glow" id="mpStartGameBtn">
-                            Lancer la partie 🚀
+                            Start Game 🚀
                         </button>
                     ` : `
                         <div class="mp-waiting-text">
                             <div class="spinner-dot"></div>
-                            <span>En attente du lancement par l'hôte...</span>
+                            <span>Waiting for host to start...</span>
                         </div>
                     `}
                 </div>
@@ -2165,10 +2165,10 @@
             <div class="mp-player-card ${p.id === MP.playerId ? 'me' : ''}">
                 <div class="player-avatar">${p.avatar || '🎧'}</div>
                 <div class="player-info">
-                    <span class="player-name">${escapeHtml(p.name)} ${p.id === MP.playerId ? '(Vous)' : ''}</span>
-                    <span class="player-role">${p.isHost ? '👑 Hôte' : 'Joueur'}</span>
+                    <span class="player-name">${escapeHtml(p.name)} ${p.id === MP.playerId ? '(You)' : ''}</span>
+                    <span class="player-role">${p.isHost ? '👑 Host' : 'Player'}</span>
                 </div>
-                <div class="player-status-badge ready">Prêt</div>
+                <div class="player-status-badge ready">Ready</div>
             </div>
         `).join('');
     }
@@ -2185,11 +2185,11 @@
         if (copyBtn) {
             copyBtn.addEventListener('click', () => {
                 navigator.clipboard.writeText(shareUrl).then(() => {
-                    copyBtn.textContent = '✅ Lien copié !';
-                    setTimeout(() => { copyBtn.textContent = '📋 Copier le lien'; }, 2000);
-                    showToast('Lien de la partie copié dans le presse-papier !', 'success');
+                    copyBtn.textContent = '✅ Link Copied!';
+                    setTimeout(() => { copyBtn.textContent = '📋 Copy Link'; }, 2000);
+                    showToast('Game link copied to clipboard!', 'success');
                 }).catch(() => {
-                    showToast(`Copiez ce lien : ${shareUrl}`);
+                    showToast(`Copy this link: ${shareUrl}`);
                 });
             });
         }
@@ -2229,7 +2229,7 @@
         if (startBtn && MP.isHost) {
             startBtn.addEventListener('click', () => {
                 startBtn.disabled = true;
-                startBtn.textContent = 'Lancement en cours...';
+                startBtn.textContent = 'Starting...';
                 send('START_GAME');
             });
         }
@@ -2266,7 +2266,7 @@
             <div class="mp-gameplay-container">
                 <div class="mp-gameplay-header">
                     <div class="mp-round-badge">
-                        Manche <span class="highlight">${data.round}</span> • Premier à <span class="highlight">${data.winningRounds}</span> ⭐
+                        Round <span class="highlight">${data.round}</span> • First to <span class="highlight">${data.winningRounds}</span> ⭐
                     </div>
 
                     <div class="circular-timer-container">
@@ -2281,16 +2281,16 @@
                     </div>
 
                     <div class="mp-scoring-info-tip">
-                        ⚡ Répondez vite pour maximiser vos points ! (-100 pts par skip)
+                        ⚡ Guess fast to maximize your points! (-100 pts per skip)
                     </div>
                 </div>
 
                 <div class="mp-game-arena">
                     <div class="mp-player-board">
                         <div class="mp-game-stats">
-                            <span>Tentative: <span id="mpCurrentAttempt">1</span>/6</span>
-                            <span>Extrait: <span id="mpClipLength">1</span>s</span>
-                            <span id="mpSongSource">Source: ${escapeHtml(data.room.playlistName || 'Multijoueur')}</span>
+                            <span>Attempt: <span id="mpCurrentAttempt">1</span>/6</span>
+                            <span>Clip: <span id="mpClipLength">1</span>s</span>
+                            <span id="mpSongSource">Source: ${escapeHtml(data.room.playlistName || 'Multiplayer')}</span>
                         </div>
 
                         <div class="mp-answer-boxes" id="mpAnswerBoxes">
@@ -2302,7 +2302,7 @@
                             <div class="answer-box" data-attempt="6"><div class="attempt-number">6</div></div>
                         </div>
 
-                        <p class="instruction-text" id="mpInstructionText">Écoutez l'extrait et devinez le titre ou l'artiste !</p>
+                        <p class="instruction-text" id="mpInstructionText">Listen to the clip and guess the song or artist!</p>
 
                         <div class="audio-player">
                             <div class="progress-container" id="mpProgressContainer">
@@ -2312,39 +2312,39 @@
                                 <span id="mpCurrentTime">0:00</span>
                                 <span id="mpTotalTime">0:01</span>
                             </div>
-                            <button type="button" class="play-button" id="mpPlayButton" title="Jouer / Pause (Espace)">▶</button>
+                            <button type="button" class="play-button" id="mpPlayButton" title="Play / Pause (Space)">▶</button>
                         </div>
 
                         <div class="search-container">
-                            <input type="text" class="search-input" placeholder="Titre ou artiste... (Touche D pour chercher)" id="mpSearchInput" autocomplete="off" spellcheck="false" />
+                            <input type="text" class="search-input" placeholder="Song title or artist... (Press D to search)" id="mpSearchInput" autocomplete="off" spellcheck="false" />
                             <button type="button" class="clear-button" id="mpClearButton">✕</button>
                             <div class="autocomplete-dropdown hidden" id="mpAutocompleteDropdown"></div>
                         </div>
 
                         <div class="action-buttons">
-                            <button type="button" class="action-button skip-button" id="mpSkipButton" title="Passer la tentative (Touche S)">SKIP (+1s)</button>
-                            <button type="button" class="action-button submit-button" id="mpSubmitButton" title="Valider la réponse (Entrée)">VALIDER</button>
+                            <button type="button" class="action-button skip-button" id="mpSkipButton" title="Skip attempt (S key)">SKIP (+1s)</button>
+                            <button type="button" class="action-button submit-button" id="mpSubmitButton" title="Submit guess (Enter)">SUBMIT</button>
                         </div>
 
                         <!-- Shortcuts legend matching index.html -->
                         <div class="shortcuts-legend" style="display: flex; justify-content: center; gap: 14px; font-size: 12px; color: #888; margin-top: 10px;">
                             <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">Space</kbd> Play/Pause</span>
-                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">S</kbd> Passer</span>
-                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">D</kbd> Recherche</span>
+                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">S</kbd> Skip</span>
+                            <span class="shortcut-item"><kbd class="kbd-key" style="background: #282828; border: 1px solid #444; padding: 2px 5px; border-radius: 3px; font-size: 11px;">D</kbd> Search</span>
                         </div>
 
                         <div class="mp-solved-banner hidden" id="mpSolvedBanner">
                             <div class="solved-icon">🎉</div>
                             <div class="solved-text">
-                                <h4>Bien joué !</h4>
-                                <p id="mpSolvedDetails">Réponse enregistrée. En attente des autres joueurs...</p>
+                                <h4>Well done!</h4>
+                                <p id="mpSolvedDetails">Guess submitted. Waiting for other players...</p>
                             </div>
                         </div>
                     </div>
 
                     <div class="mp-live-scoreboard">
                         <div class="scoreboard-header">
-                            <h4>Classement en direct</h4>
+                            <h4>Live Leaderboard</h4>
                         </div>
                         <div class="scoreboard-list" id="mpLiveScoreboardList"></div>
                     </div>
@@ -2411,13 +2411,13 @@
         list.innerHTML = sortedPlayers.map((p, idx) => {
             let statusHtml = '';
             if (p.roundState.isCorrect) {
-                statusHtml = `<span class="status-tag correct">✅ Trouvé (${p.roundState.guessTime}s)</span>`;
+                statusHtml = `<span class="status-tag correct">✅ Solved (${p.roundState.guessTime}s)</span>`;
             } else if (p.roundState.isFinished) {
-                statusHtml = `<span class="status-tag failed">❌ Éliminé</span>`;
+                statusHtml = `<span class="status-tag failed">❌ Eliminated</span>`;
             } else if (p.roundState.skips > 0) {
-                statusHtml = `<span class="status-tag skipped">⏭️ Skip (${p.roundState.skips})</span>`;
+                statusHtml = `<span class="status-tag skipped">⏭️ Skipped (${p.roundState.skips})</span>`;
             } else {
-                statusHtml = `<span class="status-tag listening">🎧 Écoute...</span>`;
+                statusHtml = `<span class="status-tag listening">🎧 Listening...</span>`;
             }
 
             const stars = '⭐'.repeat(p.roundsWon || 0);
@@ -2562,11 +2562,11 @@
             if (solvedBanner) {
                 solvedBanner.classList.remove('hidden');
                 if (solvedDetails) {
-                    solvedDetails.textContent = `Trouvé en ${data.guessTime}s ! Vous gagnez +${data.points} points.`;
+                    solvedDetails.textContent = `Solved in ${data.guessTime}s! You earn +${data.points} points.`;
                 }
             }
 
-            showToast(`🎉 Bravo ! Trouvé en ${data.guessTime}s (+${data.points} pts)`, 'success');
+            showToast(`🎉 Great job! Solved in ${data.guessTime}s (+${data.points} pts)`, 'success');
         } else {
             const attemptIdx = (data.attemptsUsed || 1) - 1;
             MP.currentAttempt = attemptIdx + 2;
@@ -2592,7 +2592,7 @@
                 if (searchInput) searchInput.disabled = true;
                 if (submitBtn) submitBtn.disabled = true;
                 if (skipBtn) skipBtn.disabled = true;
-                showToast('❌ 6 tentatives épuisées ! En attente de la fin de manche.', 'error');
+                showToast('❌ 6 attempts used up! Waiting for the round to end.', 'error');
             }
         }
     }
@@ -2699,7 +2699,7 @@
             currentSuggestions = matches.slice(0, 8).map(m => m.song);
 
             if (currentSuggestions.length === 0) {
-                dropdown.innerHTML = `<div class="autocomplete-no-results">Aucun titre correspondant</div>`;
+                dropdown.innerHTML = `<div class="autocomplete-no-results">No matching songs found</div>`;
                 dropdown.classList.remove('hidden');
                 return;
             }
@@ -2800,37 +2800,37 @@
         container.innerHTML = `
             <div class="mp-round-over-card">
                 <div class="round-over-header">
-                    <h2>${isMatchOver ? '🏆 PARTIE TERMINÉE !' : `Manche ${data.room.currentRound} terminée !`}</h2>
+                    <h2>${isMatchOver ? '🏆 MATCH OVER!' : `Round ${data.room.currentRound} Over!`}</h2>
                     <p class="round-winner-line">
                         ${data.roundWinner 
-                            ? `🥇 Gagnant de la manche : <strong>${escapeHtml(data.roundWinner.name)}</strong> (${data.roundWinner.roundState.guessTime}s, +${data.roundWinner.roundState.pointsThisRound} pts)`
-                            : 'Personne n\'a trouvé le morceau dans le temps imparti !'}
+                            ? `🥇 Round Winner: <strong>${escapeHtml(data.roundWinner.name)}</strong> (${data.roundWinner.roundState.guessTime}s, +${data.roundWinner.roundState.pointsThisRound} pts)`
+                            : 'No one guessed the song in time!'}
                     </p>
                 </div>
 
                 <div class="mp-song-reveal-box">
                     <img src="${data.song.thumbnail || 'https://i.ytimg.com/vi/EUww3qVQVe4/hqdefault.jpg'}" alt="Cover" class="reveal-cover" />
                     <div class="reveal-meta">
-                        <span class="reveal-label">LE MORCEAU ÉTAIT :</span>
+                        <span class="reveal-label">THE SONG WAS:</span>
                         <h3 class="reveal-title">${escapeHtml(data.song.title)}</h3>
                         <p class="reveal-artist">${escapeHtml(data.song.artist)}</p>
                     </div>
                 </div>
 
                 <div class="reveal-audio-player">
-                    <button type="button" class="reveal-play-btn" id="mpRevealPlayBtn">▶ Écouter le morceau complet</button>
+                    <button type="button" class="reveal-play-btn" id="mpRevealPlayBtn">▶ Listen to full song</button>
                 </div>
 
                 <div class="mp-results-table-box">
                     <table class="mp-scoreboard-table">
                         <thead>
                             <tr>
-                                <th>Rang</th>
-                                <th>Joueur</th>
-                                <th>Temps</th>
-                                <th>Pts Manche</th>
-                                <th>Score Total</th>
-                                <th>Manches</th>
+                                <th>Rank</th>
+                                <th>Player</th>
+                                <th>Time</th>
+                                <th>Round Pts</th>
+                                <th>Total Score</th>
+                                <th>Rounds Won</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2854,18 +2854,18 @@
                     ${isMatchOver ? `
                         ${MP.isHost ? `
                             <button type="button" class="mp-action-btn primary large glow" id="mpRestartGameBtn">
-                                Rejouer dans ce salon 🔄
+                                Play Again in this Room 🔄
                             </button>
                         ` : `
-                            <p class="waiting-host-msg">En attente de l'hôte pour relancer une partie...</p>
+                            <p class="waiting-host-msg">Waiting for host to restart match...</p>
                         `}
                     ` : `
                         ${MP.isHost ? `
                             <button type="button" class="mp-action-btn primary large glow" id="mpNextRoundBtn">
-                                Manche suivante ⏭️
+                                Next Round ⏭️
                             </button>
                         ` : `
-                            <p class="waiting-host-msg">En attente de l'hôte pour passer à la manche suivante...</p>
+                            <p class="waiting-host-msg">Waiting for host to start next round...</p>
                         `}
                     `}
                 </div>
@@ -2888,7 +2888,7 @@
                 if (isPlayingFull) {
                     if (window.HeardleAudioEngine) window.HeardleAudioEngine.pauseFull();
                     isPlayingFull = false;
-                    playBtn.textContent = '▶ Écouter le morceau complet';
+                    playBtn.textContent = '▶ Listen to full song';
                 } else {
                     if (window.HeardleAudioEngine) window.HeardleAudioEngine.playFull();
                     isPlayingFull = true;
@@ -2901,7 +2901,7 @@
         if (nextRoundBtn && MP.isHost) {
             nextRoundBtn.addEventListener('click', () => {
                 nextRoundBtn.disabled = true;
-                nextRoundBtn.textContent = 'Chargement...';
+                nextRoundBtn.textContent = 'Loading...';
                 if (window.HeardleAudioEngine) window.HeardleAudioEngine.stop();
                 send('NEXT_ROUND');
             });

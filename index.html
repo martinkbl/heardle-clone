@@ -1115,8 +1115,8 @@
         <!-- Header with title and icons -->
         <div class="game-header">
             <div class="header-left">
-                <a href="multiplayer.html" class="mode-btn mode-mp-link" id="openMpBtn" title="Jouer en ligne avec des amis (Ouvre la salle multijoueur)">
-                    👥 Multijoueur <span style="background: #1db954; color: #000; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">NOUVEAU</span>
+                <a href="multiplayer.html" class="mode-btn mode-mp-link" id="openMpBtn" title="Play online with friends (Opens multiplayer room)">
+                    👥 Multiplayer <span style="background: #1db954; color: #000; font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 4px; margin-left: 4px;">NEW</span>
                 </a>
             </div>
 
@@ -2777,7 +2777,7 @@
         async function onPlayerError(event) {
             console.warn('YouTube Player Error:', event.data);
             if (activeAudioType === 'youtube' && !gameEnded && currentSong && (event.data === 101 || event.data === 150 || event.data === 100 || event.data === 2)) {
-                instructionText.textContent = "Source vidéo restreinte. Recherche d'un extrait de secours...";
+                instructionText.textContent = "Restricted video source. Searching for backup audio preview...";
                 try {
                     const cleanArtist = (currentSong.artist || '').replace(/- Topic/gi, '').split(',')[0].trim();
                     const cleanTitle = (currentSong.title || '').trim();
@@ -2790,7 +2790,7 @@
                             if (!htmlAudio) htmlAudio = new Audio();
                             htmlAudio.src = data.audioPreviewUrl;
                             htmlAudio.preload = 'auto';
-                            instructionText.textContent = "Extrait officiel connecté ! Appuyez sur ▶.";
+                            instructionText.textContent = "Official preview connected! Press ▶.";
                             if (isPlaying) {
                                 htmlAudio.currentTime = 0;
                                 htmlAudio.play().catch(e => console.warn(e));
@@ -2801,12 +2801,12 @@
                             if (isPlaying) {
                                 if (player && player.loadVideoById) {
                                     player.loadVideoById({ videoId: data.videoId, startSeconds: 0 });
-                                    instructionText.textContent = "Source vidéo de secours connectée ! Appuyez sur ▶.";
+                                    instructionText.textContent = "Backup video source connected! Press ▶.";
                                 }
                             } else {
                                 if (player && player.cueVideoById) {
                                     player.cueVideoById(data.videoId);
-                                    instructionText.textContent = "Source vidéo de secours connectée ! Appuyez sur ▶.";
+                                    instructionText.textContent = "Backup video source connected! Press ▶.";
                                 }
                             }
                             return;
@@ -2816,7 +2816,7 @@
                     console.warn('Fallback error in Solo:', e);
                 }
 
-                instructionText.textContent = "⚠️ Morceau non disponible en intégration. Passage au suivant...";
+                instructionText.textContent = "⚠️ Track unavailable for embedding. Skipping to next song...";
                 setTimeout(() => {
                     resetGame(false);
                 }, 1200);

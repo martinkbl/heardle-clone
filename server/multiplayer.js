@@ -233,7 +233,7 @@ class MultiplayerManager {
     }
 
     handleCreateRoom(ws, data) {
-        const playerName = (data.playerName || 'Hôte').trim().substring(0, 20);
+        const playerName = (data.playerName || 'Host').trim().substring(0, 20);
         let roomCode = generateRoomCode();
         while (rooms.has(roomCode)) {
             roomCode = generateRoomCode();
@@ -291,15 +291,15 @@ class MultiplayerManager {
 
     handleJoinRoom(ws, data) {
         const roomCode = (data.roomCode || '').toUpperCase().trim();
-        const playerName = (data.playerName || 'Joueur').trim().substring(0, 20);
+        const playerName = (data.playerName || 'Player').trim().substring(0, 20);
         const room = rooms.get(roomCode);
 
         if (!room) {
-            return this.send(ws, 'ERROR', { message: 'Salon introuvable. Vérifiez le code du salon.' });
+            return this.send(ws, 'ERROR', { message: 'Room not found. Please check the room code.' });
         }
 
         if (room.players.size >= 12) {
-            return this.send(ws, 'ERROR', { message: 'Ce salon est plein (max 12 joueurs).' });
+            return this.send(ws, 'ERROR', { message: 'This room is full (max 12 players).' });
         }
 
         const player = {
@@ -395,7 +395,7 @@ class MultiplayerManager {
 
         const songPool = getRoomSongs(room);
         if (!songPool || songPool.length === 0) {
-            return this.broadcast(room, 'ERROR', { message: 'Aucun son disponible dans cette playlist.' });
+            return this.broadcast(room, 'ERROR', { message: 'No songs available in this playlist.' });
         }
 
         // Pick unplayed song if available
@@ -688,7 +688,7 @@ class MultiplayerManager {
         // Notify remaining players
         this.broadcast(room, 'PLAYER_LEFT', {
             playerId: ws.id,
-            playerName: leavingPlayer ? leavingPlayer.name : 'Un joueur',
+            playerName: leavingPlayer ? leavingPlayer.name : 'A player',
             room: this.sanitizeRoomForClient(room)
         });
 
@@ -722,9 +722,9 @@ class MultiplayerManager {
         let name = room.playlistName;
         if (!name) {
             if (room.customSongs && room.customSongs.length > 0) {
-                name = 'Playlist personnalisée';
+                name = 'Custom Playlist';
             } else {
-                name = playlists[room.playlistKey] ? playlists[room.playlistKey].name : 'Playlist par défaut';
+                name = playlists[room.playlistKey] ? playlists[room.playlistKey].name : 'Default Playlist';
             }
         }
 

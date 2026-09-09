@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="en">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heardle Unlimited - Multijoueur</title>
+    <title>Heardle Unlimited - Multiplayer</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
     <!-- PeerJS for WebRTC P2P multiplayer -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
@@ -1562,20 +1562,20 @@
         <!-- Header matching index.html -->
         <header class="game-header">
             <div class="header-left">
-                <button type="button" class="header-action-btn" id="btnReturnSolo" title="Retourner au mode Solo">
-                    ⬅ Mode Solo
+                <button type="button" class="header-action-btn" id="btnReturnSolo" title="Return to Solo Mode">
+                    ⬅ Solo Mode
                 </button>
             </div>
 
             <div class="header-center">
                 <h1 class="game-title">Heardle Unlimited</h1>
-                <span class="header-badge">Multijoueur</span>
+                <span class="header-badge">Multiplayer</span>
             </div>
 
             <div class="header-right">
                 <div class="connection-status-pill">
                     <span class="connection-dot online" id="mpConnectionDot"></span>
-                    <span id="mpConnectionText">En ligne</span>
+                    <span id="mpConnectionText">Online</span>
                 </div>
             </div>
         </header>
@@ -1590,41 +1590,41 @@
     <div class="modal-backdrop hidden" id="mpCustomPlaylistModal">
         <div class="modal-dialog">
             <div class="modal-header">
-                <h3>🎵 Importer une Playlist</h3>
-                <button type="button" class="modal-close" id="mpClosePlaylistModalBtn" title="Fermer">✕</button>
+                <h3>🎵 Import a Playlist</h3>
+                <button type="button" class="modal-close" id="mpClosePlaylistModalBtn" title="Close">✕</button>
             </div>
 
             <div class="modal-body">
                 <p class="modal-description">
-                    Collez le lien d'une playlist publique <strong>Spotify</strong>, <strong>Deezer</strong> ou <strong>YouTube</strong> pour jouer dessus en multijoueur avec vos amis !
+                    Paste any public <strong>Spotify</strong>, <strong>Deezer</strong> or <strong>YouTube</strong> playlist link to play multiplayer with friends!
                 </p>
 
                 <div class="modal-form-group">
-                    <label for="mpCustomPlaylistUrlInput">Lien de la Playlist (Spotify / Deezer / YouTube)</label>
-                    <input type="text" id="mpCustomPlaylistUrlInput" placeholder="https://open.spotify.com/playlist/... ou https://www.deezer.com/playlist/..." autocomplete="off">
+                    <label for="mpCustomPlaylistUrlInput">Playlist Link (Spotify / Deezer / YouTube)</label>
+                    <input type="text" id="mpCustomPlaylistUrlInput" placeholder="https://open.spotify.com/playlist/... or https://www.deezer.com/playlist/..." autocomplete="off">
                 </div>
 
                 <div class="modal-form-group">
-                    <label for="mpCustomPlaylistNameInput">Nom personnalisé <span class="label-optional">(optionnel)</span></label>
-                    <input type="text" id="mpCustomPlaylistNameInput" placeholder="Ex: Ma Sélection Rap 2024" autocomplete="off">
+                    <label for="mpCustomPlaylistNameInput">Custom Name <span class="label-optional">(optional)</span></label>
+                    <input type="text" id="mpCustomPlaylistNameInput" placeholder="e.g. My Favorites 2024" autocomplete="off">
                 </div>
 
                 <!-- Live Progress indicator -->
                 <div class="fetch-status-container hidden" id="mpFetchStatusContainer">
                     <div class="fetch-status-spinner"></div>
-                    <div class="fetch-status-text" id="mpFetchStatusText">Chargement des morceaux...</div>
+                    <div class="fetch-status-text" id="mpFetchStatusText">Loading tracks...</div>
                 </div>
 
                 <div class="modal-error-text hidden" id="mpModalErrorText"></div>
 
                 <div class="modal-actions">
-                    <button type="button" class="modal-btn modal-btn-cancel" id="mpCancelPlaylistModalBtn">Annuler</button>
-                    <button type="button" class="modal-btn modal-btn-primary" id="mpSubmitCustomPlaylistBtn">Charger la Playlist 🚀</button>
+                    <button type="button" class="modal-btn modal-btn-cancel" id="mpCancelPlaylistModalBtn">Cancel</button>
+                    <button type="button" class="modal-btn modal-btn-primary" id="mpSubmitCustomPlaylistBtn">Load Playlist 🚀</button>
                 </div>
 
                 <!-- Saved Custom Playlists Section -->
                 <div class="saved-playlists-section" id="mpSavedPlaylistsSection">
-                    <h4>Vos Playlists Enregistrées</h4>
+                    <h4>Your Saved Playlists</h4>
                     <div class="saved-playlists-list" id="mpSavedPlaylistsList">
                         <!-- Populated dynamically -->
                     </div>
