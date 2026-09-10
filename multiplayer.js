@@ -1064,11 +1064,11 @@
 
         if (result.length === 0) {
             [
-                { key: 'abdoul', name: 'Abdoul', count: 499 },
-                { key: 'gustave', name: 'Gustave', count: 641 },
-                { key: 'erwan', name: 'Erwan', count: 3198 },
-                { key: 'rayane', name: 'Rayane', count: 2314 },
-                { key: 'anir', name: 'Anir', count: 312 }
+                { key: 'top_pop_hits', name: 'Top Pop Hits', count: 100 },
+                { key: 'all_time_hip_hop_hits', name: 'All-Time Hip Hop Hits', count: 100 },
+                { key: 'all_time_pop_hits', name: 'All-Time Pop Hits', count: 99 },
+                { key: 'classic_rock_hits', name: 'Classic Rock Hits', count: 100 },
+                { key: 'epic_soundtracks', name: 'Epic Soundtracks', count: 96 }
             ].forEach(p => {
                 seenKeys.add(p.key);
                 result.push({ ...p, isCustom: false, songs: [] });
@@ -1169,7 +1169,7 @@
                     code: roomCode,
                     hostId: MP.playerId,
                     state: 'LOBBY',
-                    playlistKey: data.playlistKey || 'abdoul',
+                    playlistKey: data.playlistKey || 'top_pop_hits',
                     playlistName: data.playlistName || null,
                     customSongs: Array.isArray(data.customSongs) && data.customSongs.length > 0 ? data.customSongs : null,
                     winningRounds: parseInt(data.winningRounds, 10) || 5,
@@ -2025,7 +2025,7 @@
                 MP.playerName = name;
                 localStorage.setItem('heardle_mp_name', name);
 
-                const playlistKey = document.getElementById('mpPlaylistSelect')?.value || 'abdoul';
+                const playlistKey = document.getElementById('mpPlaylistSelect')?.value || 'top_pop_hits';
                 const plList = getAvailablePlaylistsList();
                 const selectedPl = plList.find(p => p.key === playlistKey);
                 const customSongs = selectedPl && selectedPl.isCustom ? selectedPl.songs : null;
