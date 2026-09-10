@@ -4,8 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Heardle Unlimited - Multiplayer</title>
+    <title>Playlist Guessr - Multiplayer</title>
     <link rel="icon" href="favicon.ico" type="image/x-icon">
+    <link rel="stylesheet" href="multiplayer.css">
     <!-- PeerJS for WebRTC P2P multiplayer -->
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
     <script>
@@ -1568,7 +1569,7 @@
             </div>
 
             <div class="header-center">
-                <h1 class="game-title">Heardle Unlimited</h1>
+                <h1 class="game-title">Playlist Guessr</h1>
                 <span class="header-badge">Multiplayer</span>
             </div>
 
@@ -1584,6 +1585,20 @@
         <main id="mpDynamicArea">
             <!-- Hub, Lobby, In-Game Arena or Round Over is injected here -->
         </main>
+
+        <!-- Credits Footer Banner -->
+        <footer class="app-credits-footer">
+            <div class="credits-content">
+                <span class="credits-by">Created by <strong class="creator-name">Vocal 1 Production</strong></span>
+                <span class="credits-divider">•</span>
+                <a href="https://x.com/Martheinok" target="_blank" rel="noopener noreferrer" class="credits-contact-link">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" style="vertical-align: -2px; margin-right: 5px;">
+                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 24.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                    </svg>
+                    Contact
+                </a>
+            </div>
+        </footer>
     </div>
 
     <!-- Modal for adding/managing custom playlists in Multiplayer -->
