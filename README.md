@@ -104,8 +104,8 @@ heardle-game-clone/
    ```
 
 4. **Access the application**:
-   - Solo Mode: `http://localhost:3000/`
-   - Multiplayer Hub: `http://localhost:3000/multiplayer.html`
+   - Solo Mode: `heardle-clone-delta.vercel.app`
+   - Multiplayer Hub: `https://heardle-clone-delta.vercel.app/multiplayer.html`
 
 ---
 
